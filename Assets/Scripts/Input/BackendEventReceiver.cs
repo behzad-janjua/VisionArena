@@ -127,10 +127,10 @@ namespace KiForge.Input
                         eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.ChargeStart, msg.GetOrigin(), msg.GetAim()));
                         break;
                     case KiForgeEventNames.ChargeUpdate:
-                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.ChargeUpdate, msg.GetOrigin(), msg.GetAim(), msg.charge, msg.holdSeconds));
+                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.ChargeUpdate, msg.GetOrigin(), msg.GetAim(), msg.Charge, msg.HoldSeconds));
                         break;
                     case KiForgeEventNames.BlastRelease:
-                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.BlastRelease, msg.GetOrigin(), msg.GetAim(), msg.charge, msg.holdSeconds));
+                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.BlastRelease, msg.GetOrigin(), msg.GetAim(), msg.Charge, msg.HoldSeconds));
                         break;
                     case KiForgeEventNames.ShieldStart:
                         eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.ShieldStart, msg.GetOrigin(), msg.GetAim()));
@@ -150,10 +150,10 @@ namespace KiForge.Input
                     case KiForgeEventNames.PoseUpdate:
                         eventBus?.PublishPose(new PoseEvent
                         {
-                            wrist = msg.GetOrigin(),
+                            wrist = msg.GetWrist(),
                             bodyCenter = msg.GetBodyCenter(),
                             aim = msg.GetAim(),
-                            confidence = msg.confidence,
+                            confidence = msg.Confidence,
                             timestamp = msg.timestamp
                         });
                         break;
@@ -185,23 +185,41 @@ namespace KiForge.Input
             public float y;
         }
 
+        // Mirrors the backend NormalizedEvent.payload object. All combat/pose fields
+        // are nested here — the backend wraps every websocket frame as
+        // { "type", "timestamp", "payload": { ... } }.
         [Serializable]
-        private sealed class BackendMessage
+        private sealed class Payload
         {
-            public string type;
             public float charge;
             public float holdSeconds;
             public float emgIntensity;
             public float confidence;
-            public double timestamp;
             public Vec2Msg origin;
             public Vec2Msg aim;
+            public Vec2Msg wrist;
             public Vec2Msg bodyCenter;
             public Vec2Msg target;
+        }
 
-            public Vector2 GetOrigin() => origin != null ? new Vector2(origin.x, origin.y) : Vector2.zero;
-            public Vector2 GetAim() => aim != null ? new Vector2(aim.x, aim.y) : Vector2.right;
-            public Vector2 GetBodyCenter() => bodyCenter != null ? new Vector2(bodyCenter.x, bodyCenter.y) : Vector2.zero;
+        [Serializable]
+        private sealed class BackendMessage
+        {
+            public string type;
+            public double timestamp;
+            public Payload payload;
+
+            private static Vector2 ToVec(Vec2Msg v, Vector2 fallback) =>
+                v != null ? new Vector2(v.x, v.y) : fallback;
+
+            public float Charge => payload?.charge ?? 0f;
+            public float HoldSeconds => payload?.holdSeconds ?? 0f;
+            public float Confidence => payload?.confidence ?? 0f;
+
+            public Vector2 GetOrigin() => ToVec(payload?.origin, Vector2.zero);
+            public Vector2 GetAim() => ToVec(payload?.aim, Vector2.right);
+            public Vector2 GetWrist() => ToVec(payload?.wrist, Vector2.zero);
+            public Vector2 GetBodyCenter() => ToVec(payload?.bodyCenter, Vector2.zero);
         }
     }
 }

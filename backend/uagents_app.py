@@ -7,10 +7,10 @@ from backend.models import CombatTelemetry
 game_master = GameMasterAgent()
 
 
-def handle_agent_message(payload: dict) -> dict:
+def handle_agent_message(payload: dict, player_id: str = "agentverse_player") -> dict:
     """Shared adapter for Agentverse/ASI:One wrappers and local tests."""
     telemetry = CombatTelemetry(**payload)
-    return game_master.handle_combat_event(telemetry).to_event().payload
+    return game_master.handle_combat_event(telemetry, player_id=player_id).to_event().payload
 
 
 try:

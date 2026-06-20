@@ -12,6 +12,25 @@ _DEFAULT_WEIGHTS = {
     "unblockable": 0.0,
 }
 
+# Dimension of the player-style vector indexed in Redis for similarity recall.
+STYLE_VECTOR_DIM = 5
+
+
+def style_vector(profile: dict[str, Any]) -> list[float]:
+    """Turn a player profile into a fixed-length fingerprint for Redis vector recall.
+
+    The boss uses KNN over these vectors to find the most similar player it has
+    fought before and reuse the strategy that worked against them.
+    """
+    avg_charge = float(profile.get("avg_charge_time", 0.0))
+    return [
+        float(profile.get("blast_rate", 0.0)),
+        float(profile.get("block_rate", 0.0)),
+        float(profile.get("slash_rate", 0.0)),
+        min(float(profile.get("ultimates_used", 0)) / 3.0, 1.0),
+        min(avg_charge / 4.0, 1.0),
+    ]
+
 
 def build_player_profile(events: list[dict[str, Any]], evals: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     evals = evals or []
@@ -28,9 +47,13 @@ def build_player_profile(events: list[dict[str, Any]], evals: list[dict[str, Any
         counts["charged_blast"] >= 1 and avg_charge_time >= 1.5
     ):
         style = "patient_charger"
-    elif counts["shield"] >= max(2, counts["charged_blast"] + counts["slash_left"] + counts["slash_right"]):
+    elif counts["shield"] >= max(2, counts["charged_blast"] + counts["slash_left"] + counts["slash_right"]) or (
+        counts["shield"] >= 1 and len(events) <= 2
+    ):
         style = "shield_turtle"
-    elif counts["slash_left"] + counts["slash_right"] >= max(2, counts["charged_blast"]):
+    elif counts["slash_left"] + counts["slash_right"] >= max(2, counts["charged_blast"]) or (
+        counts["slash_left"] + counts["slash_right"] >= 1 and len(events) <= 2
+    ):
         style = "slash_spammer"
 
     counter_scores = [float(item.get("counter_success", 0.0)) for item in evals]

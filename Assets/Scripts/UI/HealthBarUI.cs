@@ -45,12 +45,9 @@ namespace KiForge.UI
         private static FighterHealthBar BuildBlockBar(Canvas canvas, string label,
             bool isLeft, Color fillColor, float maxHealth)
         {
-            var frameSprite = LoadSprite("Assets/ZombiSoft/TinyHealthSystem/Bars/Frame.psd", "Frame");
-            var blockSprite = LoadSprite("Assets/ZombiSoft/TinyHealthSystem/Bars/HealthBar.psd", "HealthBar_0");
-
             // Root container — anchored to the corner
-            float barWidth  = 480f;
-            float barHeight = 30f;
+            float barWidth  = 520f;
+            float barHeight = 22f;
 
             var root   = new GameObject(label);
             root.transform.SetParent(canvas.transform, false);
@@ -101,25 +98,9 @@ namespace KiForge.UI
                 blockRT.sizeDelta        = new Vector2(blockWidth, blockH);
 
                 var blockImg   = blockGO.AddComponent<Image>();
-                blockImg.sprite = blockSprite;
                 blockImg.type   = Image.Type.Simple;
                 blockImg.color  = fillColor;
                 blockImages.Add(blockImg);
-            }
-
-            // Frame overlay (cosmetic border)
-            if (frameSprite != null)
-            {
-                var frameGO   = new GameObject("Frame");
-                frameGO.transform.SetParent(root.transform, false);
-                var frameRect = frameGO.AddComponent<RectTransform>();
-                frameRect.anchorMin = Vector2.zero;
-                frameRect.anchorMax = Vector2.one;
-                frameRect.offsetMin = frameRect.offsetMax = Vector2.zero;
-                var frameImg  = frameGO.AddComponent<Image>();
-                frameImg.sprite = frameSprite;
-                frameImg.type   = Image.Type.Sliced;
-                frameImg.color  = new Color(1f, 1f, 1f, 0.7f);
             }
 
             var bar = root.AddComponent<FighterHealthBar>();
@@ -127,15 +108,5 @@ namespace KiForge.UI
             return bar;
         }
 
-        private static Sprite LoadSprite(string path, string spriteName)
-        {
-#if UNITY_EDITOR
-            var all = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(path);
-            foreach (var a in all)
-                if (a is Sprite s && s.name == spriteName)
-                    return s;
-#endif
-            return null;
-        }
     }
 }

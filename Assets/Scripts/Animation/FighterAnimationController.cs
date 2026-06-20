@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using KiForge.Combat;
 using UnityEngine;
 
 namespace KiForge.Animation
@@ -8,12 +9,13 @@ namespace KiForge.Animation
     {
         [SerializeField] private string punchStateName = "Punching";
         [SerializeField] private string dyingStateName = "Dying";
+        [SerializeField] private string gettingHitStateName = "GettingHit";
         [SerializeField] private float punchInterval = 2.2f;
         [SerializeField] private float punchTravelDistance = 0.55f;
         [SerializeField] private float impactDelay = 0.38f;
         [SerializeField] private bool autoPunch;
         [SerializeField] private float painFlashSeconds = 0.16f;
-        [SerializeField] private float attackRange = 3.2f;
+        [SerializeField] private float attackRange = 5.0f;
 
         private Animator animator;
         private Transform opponent;
@@ -27,6 +29,11 @@ namespace KiForge.Animation
         public event Action<FighterAnimationController, Transform> Impact;
 
         public bool IsAttacking => activePunchMotion != null;
+        public bool IsBlocking { get; private set; }
+        public bool IsDefeated => defeated;
+
+        /// <summary>The attack carried by the most recent <see cref="Impact"/> event.</summary>
+        public AttackType LastAttack { get; private set; }
 
         public void SetHome(Vector3 pos)
         {
@@ -48,18 +55,26 @@ namespace KiForge.Animation
             }
         }
 
+        /// <summary>Backwards-compatible quick punch (used by the auto-punch loop).</summary>
         public void PlayPunch()
+        {
+            Attack(AttackType.PunchRight);
+        }
+
+        /// <summary>Perform a typed attack. Damage is resolved by listeners via <see cref="LastAttack"/>.</summary>
+        public void Attack(AttackType type)
         {
             if (defeated)
             {
                 return;
             }
 
+            IsBlocking = false;
             FaceOpponent();
 
             if (animator != null)
             {
-                animator.CrossFadeInFixedTime(punchStateName, 0.08f);
+                animator.CrossFadeInFixedTime(AttackTuning.StateName(type), 0.08f);
             }
 
             if (activePunchMotion != null)
@@ -68,7 +83,44 @@ namespace KiForge.Animation
                 transform.position = homePosition;
             }
 
-            activePunchMotion = StartCoroutine(PunchMotion());
+            activePunchMotion = StartCoroutine(AttackMotion(type));
+        }
+
+        public void StartBlock(bool left)
+        {
+            if (defeated)
+            {
+                return;
+            }
+
+            IsBlocking = true;
+            FaceOpponent();
+
+            if (activePunchMotion != null)
+            {
+                StopCoroutine(activePunchMotion);
+                activePunchMotion = null;
+                transform.position = homePosition;
+            }
+
+            if (animator != null)
+            {
+                animator.CrossFadeInFixedTime(left ? "LeftBlock" : "RightBlock", 0.1f);
+            }
+        }
+
+        public void StopBlock()
+        {
+            if (!IsBlocking)
+            {
+                return;
+            }
+
+            IsBlocking = false;
+            if (animator != null && !defeated)
+            {
+                animator.CrossFadeInFixedTime(punchStateName, 0.12f);
+            }
         }
 
         public void StopLoop()
@@ -87,6 +139,12 @@ namespace KiForge.Animation
                 return;
             }
 
+            // Blocking absorbs the hit: keep the guard pose, just a small flash.
+            if (!IsBlocking && animator != null && HasState(gettingHitStateName))
+            {
+                animator.CrossFadeInFixedTime(gettingHitStateName, 0.06f);
+            }
+
             if (painRoutine != null)
             {
                 StopCoroutine(painRoutine);
@@ -103,6 +161,7 @@ namespace KiForge.Animation
             }
 
             defeated = true;
+            IsBlocking = false;
             StopLoop();
 
             if (activePunchMotion != null)
@@ -162,8 +221,11 @@ namespace KiForge.Animation
             }
 
             var recoilStart = transform.position;
-            var away = opponent == null ? -transform.right : (transform.position - opponent.position).normalized;
-            transform.position = recoilStart + away * 0.16f;
+            var fromOpponent = opponent == null ? -transform.right : transform.position - opponent.position;
+            fromOpponent.y = 0f;
+            var away = fromOpponent == Vector3.zero ? -transform.right : fromOpponent.normalized;
+            // Blocked hits barely move you; clean hits recoil more.
+            transform.position = recoilStart + away * (IsBlocking ? 0.05f : 0.16f);
             yield return new WaitForSeconds(painFlashSeconds);
 
             transform.position = recoilStart;
@@ -216,28 +278,36 @@ namespace KiForge.Animation
             }
         }
 
-        private IEnumerator PunchMotion()
+        private IEnumerator AttackMotion(AttackType type)
         {
+            var delay = AttackTuning.ImpactDelay(type);
+            var reach = type == AttackType.KickLeft || type == AttackType.KickRight
+                ? punchTravelDistance * 1.25f
+                : punchTravelDistance;
+
             var start = homePosition;
-            var direction = opponent == null ? transform.right : (opponent.position - transform.position).normalized;
-            var lunge = start + direction * punchTravelDistance;
+            var toOpponent = opponent == null ? transform.right : opponent.position - transform.position;
+            toOpponent.y = 0f;
+            var direction = toOpponent == Vector3.zero ? transform.right : toOpponent.normalized;
+            var lunge = start + direction * reach;
 
             var timer = 0f;
-            while (timer < impactDelay)
+            while (timer < delay)
             {
                 timer += Time.deltaTime;
-                transform.position = Vector3.Lerp(start, lunge, timer / impactDelay);
+                transform.position = Vector3.Lerp(start, lunge, timer / delay);
                 yield return null;
             }
 
+            LastAttack = type;
             Impact?.Invoke(this, opponent);
 
             timer = 0f;
-            while (timer < impactDelay)
+            while (timer < delay)
             {
                 timer += Time.deltaTime;
                 // Return to current homePosition so walking during a punch lands at the right spot
-                transform.position = Vector3.Lerp(lunge, homePosition, timer / impactDelay);
+                transform.position = Vector3.Lerp(lunge, homePosition, timer / delay);
                 yield return null;
             }
 

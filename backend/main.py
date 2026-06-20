@@ -8,7 +8,9 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from backend.agents import GameMasterAgent
+from backend.agents.game_master_agent import _TRACKED_ABILITIES
 from backend.models import CombatTelemetry, EventType, NormalizedEvent
+from backend.player_memory import style_vector
 from backend.vision_bridge import vision_bridge_stream
 
 log = logging.getLogger(__name__)
@@ -96,6 +98,50 @@ def demo_fight_lab(player_id: str = "demo_player") -> dict[str, Any]:
     }
 
 
+@app.get("/demo/redis")
+def demo_redis(player_id: str = "demo_player") -> dict[str, Any]:
+    """Sponsor-track panel: shows every Redis structure powering the game."""
+    store = _game_master.store
+    return {
+        "backend": store.backend_label,
+        "using_memory_store": store.using_memory,
+        "vector_search": store.using_vector_search,
+        "boss_phase": store.get_boss_phase(player_id),
+        "active_cooldowns": store.active_cooldowns(player_id, list(_TRACKED_ABILITIES)),
+        "move_names": store.get_move_names(player_id, limit=20),
+        "recap_prompts": store.get_recap_prompts(player_id, limit=5),
+        "match_stream": store.stream_recent(count=20),
+        "memory_recall": _game_master.store.get_json(f"player:{player_id}:profile").get("memory_recall", []),
+    }
+
+
+@app.get("/demo/memory-recall")
+def demo_memory_recall(player_id: str = "demo_player", k: int = 3) -> dict[str, Any]:
+    """KNN over player-style vectors: who has the boss fought that fights like this?"""
+    store = _game_master.store
+    profile = store.get_json(f"player:{player_id}:profile")
+    vector = style_vector(profile)
+    return {
+        "player_id": player_id,
+        "vector_search": store.using_vector_search,
+        "query_vector": vector,
+        "similar_players": store.recall_similar(vector, k=k, exclude=player_id),
+    }
+
+
+@app.get("/demo/cooldowns")
+def demo_cooldowns(player_id: str = "demo_player") -> dict[str, Any]:
+    return {
+        "player_id": player_id,
+        "active_cooldowns": _game_master.store.active_cooldowns(player_id, list(_TRACKED_ABILITIES)),
+    }
+
+
+@app.get("/demo/stream")
+def demo_stream(count: int = 20) -> dict[str, Any]:
+    return {"match_stream": _game_master.store.stream_recent(count=count)}
+
+
 @app.get("/demo/recap")
 def demo_recap() -> dict[str, Any]:
     state = _game_master.demo_state()
@@ -111,6 +157,19 @@ def demo_recap() -> dict[str, Any]:
 def demo_combat(payload: dict[str, Any], player_id: str = "demo_player") -> dict[str, Any]:
     telemetry = CombatTelemetry(**payload)
     return _game_master.handle_combat_event(telemetry, player_id=player_id).to_event().payload
+
+
+@app.post("/agent/combat")
+def agent_combat(payload: dict[str, Any], player_id: str = "agentverse_player") -> dict[str, Any]:
+    """Stable Agentverse/API integration route for combat decisions."""
+    telemetry = CombatTelemetry(**payload)
+    return _game_master.handle_combat_event(telemetry, player_id=player_id).to_event().payload
+
+
+@app.get("/agent/state")
+def agent_state(player_id: str = "agentverse_player") -> dict[str, Any]:
+    """Small read endpoint for hosted agent health checks and judge demos."""
+    return _game_master.demo_state(player_id)
 
 
 @app.websocket("/ws/unity")

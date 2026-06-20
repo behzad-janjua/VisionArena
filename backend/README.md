@@ -18,6 +18,8 @@ Demo endpoints:
 - `GET /demo/fight-lab` returns Arize-style evals, adaptation, strategy weights, and traces.
 - `GET /demo/recap` returns the latest Pika prompt plus queued recap jobs.
 - `POST /demo/combat` accepts a `CombatTelemetry` JSON object and returns an agent response.
+- `POST /agent/combat` is the stable Agentverse/API endpoint for external integration.
+- `GET /agent/state` exposes the external-agent memory/state view.
 
 Mock MYO bridge:
 
