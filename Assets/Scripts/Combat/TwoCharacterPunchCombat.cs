@@ -1,6 +1,5 @@
 using KiForge.Animation;
 using KiForge.Effects;
-using KiForge.UI;
 using UnityEngine;
 
 namespace KiForge.Combat
@@ -12,17 +11,15 @@ namespace KiForge.Combat
         private PlayerCombatController player;
         private BossCombatController boss;
         private ArenaEffectsController effects;
-        private KiForgeHudController hud;
         private FighterAnimationController playerPuncher;
         private FighterAnimationController bossPuncher;
         private bool fightEnded;
 
-        public void Initialize(PlayerCombatController playerController, BossCombatController bossController, ArenaEffectsController effectsController, KiForgeHudController hudController, FighterAnimationController playerPuncher, FighterAnimationController bossPuncher)
+        public void Initialize(PlayerCombatController playerController, BossCombatController bossController, ArenaEffectsController effectsController, FighterAnimationController playerPuncher, FighterAnimationController bossPuncher)
         {
             player = playerController;
             boss = bossController;
             effects = effectsController;
-            hud = hudController;
             this.playerPuncher = playerPuncher;
             this.bossPuncher = bossPuncher;
 
@@ -72,14 +69,13 @@ namespace KiForge.Combat
             var origin = source.transform.position + Vector3.up * 0.7f;
             var direction = target.position.x > source.transform.position.x ? Vector2.right : Vector2.left;
             effects.ShowSlash(origin, direction);
+            effects.ShowPainBurst(target.position + Vector3.up * 0.75f);
             effects.ScreenShake();
-            hud.Refresh();
         }
 
         private void OnFighterHurt(FighterAnimationController fighter, Transform target)
         {
             fighter.PlayPain();
-            hud.Refresh();
         }
 
         private void OnFighterDefeated(FighterAnimationController defeatedFighter)
@@ -88,7 +84,6 @@ namespace KiForge.Combat
             playerPuncher.StopLoop();
             bossPuncher.StopLoop();
             defeatedFighter.PlayDying();
-            hud.Refresh();
         }
     }
 }

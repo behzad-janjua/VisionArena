@@ -41,7 +41,30 @@ class RedisStore:
 
     def append_match_event(self, player_id: str, event: dict[str, Any]) -> None:
         key = f"player:{player_id}:match_events"
+        self.append_json(key, event)
+
+    def append_json(self, key: str, value: dict[str, Any]) -> None:
         if self._client is None:
-            self._memory.setdefault(key, []).append(event)
+            self._memory.setdefault(key, []).append(value)
             return
-        self._client.rpush(key, json.dumps(event))
+        self._client.rpush(key, json.dumps(value))
+
+    def get_json_list(self, key: str, limit: int | None = None) -> list[dict[str, Any]]:
+        if self._client is None:
+            items = list(self._memory.get(key, []))
+        else:
+            start = 0 if limit is None else -limit
+            items = [json.loads(raw) for raw in self._client.lrange(key, start, -1)]
+
+        if limit is not None:
+            return items[-limit:]
+        return items
+
+    def get_match_events(self, player_id: str, limit: int | None = None) -> list[dict[str, Any]]:
+        return self.get_json_list(f"player:{player_id}:match_events", limit=limit)
+
+    def append_trace(self, player_id: str, trace: dict[str, Any]) -> None:
+        self.append_json(f"player:{player_id}:fight_lab_traces", trace)
+
+    def get_traces(self, player_id: str, limit: int | None = None) -> list[dict[str, Any]]:
+        return self.get_json_list(f"player:{player_id}:fight_lab_traces", limit=limit)

@@ -8,6 +8,9 @@ namespace KiForge.Input
         [SerializeField] private Camera targetCamera;
         [SerializeField] private float keyboardMoveSpeed = 4f;
 
+        /// <summary>Set to false by CvAimController when live body tracking takes over.</summary>
+        public bool EnableMovement = true;
+
         private KiForgeEventBus eventBus;
         private Transform playerRoot;
         private bool charging;
@@ -37,6 +40,7 @@ namespace KiForge.Input
 
         private void UpdateMovement()
         {
+            if (!EnableMovement) return;
             var x = UnityEngine.Input.GetAxisRaw("Horizontal");
             playerRoot.position += Vector3.right * x * keyboardMoveSpeed * Time.deltaTime;
             playerRoot.position = new Vector3(Mathf.Clamp(playerRoot.position.x, -6f, 1f), playerRoot.position.y, playerRoot.position.z);

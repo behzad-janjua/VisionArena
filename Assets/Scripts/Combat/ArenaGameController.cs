@@ -1,7 +1,6 @@
 using KiForge.Effects;
 using KiForge.Shared;
 using KiForge.Telemetry;
-using KiForge.UI;
 using UnityEngine;
 
 namespace KiForge.Combat
@@ -12,7 +11,6 @@ namespace KiForge.Combat
         [SerializeField] private PlayerCombatController player;
         [SerializeField] private BossCombatController boss;
         [SerializeField] private ArenaEffectsController effects;
-        [SerializeField] private KiForgeHudController hud;
         [SerializeField] private MatchTelemetryRecorder telemetry;
         [SerializeField] private int bossStartingHealthForDeathTest = 1;
 
@@ -20,17 +18,18 @@ namespace KiForge.Combat
         private int round = 1;
         private float currentCharge;
         private Vector2 latestAim = Vector2.right;
+        private Vector2 latestCvWrist;
+        private bool hasCvWrist;
 
         public CombatConfig Config => config;
         public StrategyWeights StrategyWeights { get; } = new StrategyWeights();
 
-        public void Initialize(KiForgeEventBus bus, PlayerCombatController playerController, BossCombatController bossController, ArenaEffectsController effectsController, KiForgeHudController hudController, MatchTelemetryRecorder telemetryRecorder)
+        public void Initialize(KiForgeEventBus bus, PlayerCombatController playerController, BossCombatController bossController, ArenaEffectsController effectsController, MatchTelemetryRecorder telemetryRecorder)
         {
             eventBus = bus;
             player = playerController;
             boss = bossController;
             effects = effectsController;
-            hud = hudController;
             telemetry = telemetryRecorder;
 
             player.Initialize(config.playerMaxHealth);
@@ -39,9 +38,6 @@ namespace KiForge.Combat
             eventBus.GestureReceived += OnGesture;
             eventBus.PoseReceived += OnPose;
             eventBus.AgentResponseReceived += OnAgentResponse;
-
-            hud.Bind(player, boss);
-            hud.SetFightLab("Player Style: unknown\nBoss Strategy: balanced\nCounter Success: --");
         }
 
         private void OnDestroy()
@@ -58,9 +54,27 @@ namespace KiForge.Combat
 
         private void OnPose(PoseEvent pose)
         {
-            latestAim = pose.aim.sqrMagnitude > 0.001f ? pose.aim.normalized : latestAim;
-            hud.SetAimReticle(pose.wrist + latestAim * 2f);
+            if (pose.aim.sqrMagnitude > 0.001f)
+                latestAim = pose.aim.normalized;
+
+            // Wrist from CV backend arrives as normalized [0,1] screen coords.
+            // Keyboard fallback publishes world-space coords (typically outside [0,1]).
+            // Detect CV frames by checking both components are in unit range.
+            bool isCvFrame = pose.wrist.x >= 0f && pose.wrist.x <= 1f
+                             && pose.wrist.y >= 0f && pose.wrist.y <= 1f
+                             && pose.confidence > 0f && pose.confidence < 1f;
+            if (isCvFrame)
+            {
+                // Mirror and scale to match CvAimController world-space mapping
+                float wx = (1f - pose.wrist.x - 0.5f) * 5f;
+                float wy = (pose.wrist.y - 0.5f) * 4f + 0.5f;
+                latestCvWrist = new Vector2(wx, wy);
+                hasCvWrist = true;
+            }
         }
+
+        private Vector2 AttackOrigin(GestureEvent gesture) =>
+            hasCvWrist ? latestCvWrist : gesture.origin;
 
         private void OnGesture(GestureEvent gesture)
         {
@@ -69,12 +83,10 @@ namespace KiForge.Combat
                 case GestureEventType.ChargeStart:
                     currentCharge = 0f;
                     effects.ShowAura(true);
-                    hud.SetCharge(0f);
                     break;
                 case GestureEventType.ChargeUpdate:
                     currentCharge = gesture.charge;
                     effects.SetAuraPower(gesture.charge);
-                    hud.SetCharge(gesture.charge);
                     break;
                 case GestureEventType.BlastRelease:
                     ResolveBlast(gesture);
@@ -103,27 +115,28 @@ namespace KiForge.Combat
         private void ResolveBlast(GestureEvent gesture)
         {
             effects.ShowAura(false);
-            hud.SetCharge(0f);
-
+            var origin = AttackOrigin(gesture);
             var aim = gesture.aim.sqrMagnitude > 0.001f ? gesture.aim.normalized : latestAim;
             var accuracy = Mathf.Lerp(0.65f, 1.15f, Mathf.Clamp01(Vector2.Dot(aim, Vector2.right) * 0.5f + 0.5f));
             var damage = config.DamageForCharge(gesture.holdSeconds, accuracy);
             boss.ApplyDamage(damage);
-            effects.FireBeam(gesture.origin, gesture.origin + aim * config.beamRange, config.ChargeLevel(gesture.holdSeconds));
+            effects.FireBeam(origin, origin + aim * config.beamRange, config.ChargeLevel(gesture.holdSeconds));
             PublishTelemetry(PlayerActionType.ChargedBlast, gesture.holdSeconds, damage, boss.IsDefeated ? "boss_ko" : "boss_hit");
         }
 
         private void ResolveSlash(PlayerActionType action, Vector2 origin, Vector2 direction)
         {
+            var o = hasCvWrist ? latestCvWrist : origin;
             boss.ApplyDamage(config.slashDamage);
-            effects.ShowSlash(origin, direction);
+            effects.ShowSlash(o, direction);
             PublishTelemetry(action, 0f, config.slashDamage, boss.IsDefeated ? "boss_ko" : "slash_hit");
         }
 
         private void ResolveUltimate(GestureEvent gesture)
         {
+            var origin = AttackOrigin(gesture);
             boss.ApplyDamage(config.ultimateDamage);
-            effects.FireBeam(gesture.origin, gesture.origin + gesture.aim.normalized * config.beamRange, 4);
+            effects.FireBeam(origin, origin + gesture.aim.normalized * config.beamRange, 4);
             effects.ScreenShake();
             PublishTelemetry(PlayerActionType.Ultimate, gesture.holdSeconds, config.ultimateDamage, boss.IsDefeated ? "boss_ko" : "ultimate_hit");
         }
@@ -146,7 +159,6 @@ namespace KiForge.Combat
 
             telemetry.Record(evt);
             eventBus.PublishCombatTelemetry(evt);
-            hud.Refresh();
         }
 
         private void OnAgentResponse(AgentResponseEvent response)
@@ -156,8 +168,6 @@ namespace KiForge.Combat
                 StrategyWeights.AdaptForStyle(response.nextStrategy);
             }
 
-            hud.SetNarration(response.moveName, response.narration);
-            hud.SetFightLab($"Player Style: {response.nextStrategy}\nBoss Counter Success: {response.counterSuccess:P0}\nBoss Action: {response.bossAction}");
         }
     }
 }

@@ -13,6 +13,7 @@ namespace KiForge.Animation
         [SerializeField] private float impactDelay = 0.38f;
         [SerializeField] private bool autoPunch;
         [SerializeField] private float painFlashSeconds = 0.16f;
+        [SerializeField] private float attackRange = 3.2f;
 
         private Animator animator;
         private Transform opponent;
@@ -24,6 +25,13 @@ namespace KiForge.Animation
         private bool defeated;
 
         public event Action<FighterAnimationController, Transform> Impact;
+
+        public bool IsAttacking => activePunchMotion != null;
+
+        public void SetHome(Vector3 pos)
+        {
+            homePosition = pos;
+        }
 
         public void Initialize(Transform target, bool startsAutomatically, float intervalOffset = 0f)
         {
@@ -197,13 +205,13 @@ namespace KiForge.Animation
         private IEnumerator PunchLoop(float intervalOffset)
         {
             if (intervalOffset > 0f)
-            {
                 yield return new WaitForSeconds(intervalOffset);
-            }
 
             while (enabled)
             {
-                PlayPunch();
+                var inRange = opponent == null ||
+                              Vector3.Distance(homePosition, opponent.position) <= attackRange;
+                if (inRange) PlayPunch();
                 yield return new WaitForSeconds(punchInterval);
             }
         }
@@ -228,11 +236,12 @@ namespace KiForge.Animation
             while (timer < impactDelay)
             {
                 timer += Time.deltaTime;
-                transform.position = Vector3.Lerp(lunge, start, timer / impactDelay);
+                // Return to current homePosition so walking during a punch lands at the right spot
+                transform.position = Vector3.Lerp(lunge, homePosition, timer / impactDelay);
                 yield return null;
             }
 
-            transform.position = start;
+            transform.position = homePosition;
             activePunchMotion = null;
         }
 

@@ -62,6 +62,30 @@ class CombatTelemetry:
 
 
 @dataclass
+class TraceSpan:
+    name: str
+    inputs: dict[str, Any] = field(default_factory=dict)
+    outputs: dict[str, Any] = field(default_factory=dict)
+    timestamp: float = field(default_factory=time)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class FightLabTrace:
+    trace_id: str
+    match_id: str
+    player_id: str
+    round: int
+    spans: list[TraceSpan] = field(default_factory=list)
+    timestamp: float = field(default_factory=time)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class AgentResponse:
     move_name: str
     narration: str
@@ -70,6 +94,10 @@ class AgentResponse:
     recap_prompt: str = ""
     counter_success: float = 0.0
     survival_score: float = 0.0
+    strategy_weights: dict[str, float] = field(default_factory=dict)
+    player_profile: dict[str, Any] = field(default_factory=dict)
+    trace: dict[str, Any] = field(default_factory=dict)
+    recap_job: dict[str, Any] = field(default_factory=dict)
 
     def to_event(self) -> NormalizedEvent:
         return NormalizedEvent(type=EventType.AGENT_RESPONSE.value, payload=asdict(self))

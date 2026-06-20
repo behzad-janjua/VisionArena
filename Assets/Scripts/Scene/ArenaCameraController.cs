@@ -6,9 +6,9 @@ namespace KiForge.Scene
     [RequireComponent(typeof(Camera))]
     public sealed class ArenaCameraController : MonoBehaviour
     {
-        [SerializeField] private Vector3 lockedPosition = new Vector3(0f, 0.4f, -10f);
-        [SerializeField] private float orthographicSize = 5f;
-        [SerializeField] private Color backgroundColor = new Color(0.02f, 0.025f, 0.04f);
+        [SerializeField] private Vector3 lockedPosition = new Vector3(0f, 1.5f, -10f);
+        [SerializeField] private float orthographicSize = 3.5f;
+        [SerializeField] private Color backgroundColor = new Color(0.08f, 0.1f, 0.16f);
 
         public static ArenaCameraController Instance { get; private set; }
 
