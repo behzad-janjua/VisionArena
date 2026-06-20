@@ -7,6 +7,7 @@ namespace KiForge.Combat
     {
         public int Health { get; private set; }
         public int MaxHealth { get; private set; }
+        public bool IsDefeated => Health <= 0;
         public bool Shielding { get; private set; }
 
         public event Action<int> Damaged;

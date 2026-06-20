@@ -12,13 +12,16 @@ namespace KiForge.Input
         private float rightBound;
         private float groundY;
 
-        public void Initialize(float speed, float left, float right)
+        private bool useArrows;
+
+        public void Initialize(float speed, float left, float right, bool arrowKeys = false)
         {
-            fighter   = GetComponent<FighterAnimationController>();
-            walkSpeed = speed;
-            leftBound = left;
+            fighter    = GetComponent<FighterAnimationController>();
+            walkSpeed  = speed;
+            leftBound  = left;
             rightBound = right;
-            groundY   = transform.position.y;
+            groundY    = transform.position.y;
+            useArrows  = arrowKeys;
         }
 
         private void Update()
@@ -26,8 +29,16 @@ namespace KiForge.Input
             if (fighter == null || fighter.IsAttacking) return;
 
             float h = 0f;
-            if (UnityEngine.Input.GetKey(KeyCode.LeftArrow)  || UnityEngine.Input.GetKey(KeyCode.A)) h = -1f;
-            if (UnityEngine.Input.GetKey(KeyCode.RightArrow) || UnityEngine.Input.GetKey(KeyCode.D)) h =  1f;
+            if (useArrows)
+            {
+                if (UnityEngine.Input.GetKey(KeyCode.LeftArrow))  h = -1f;
+                if (UnityEngine.Input.GetKey(KeyCode.RightArrow)) h =  1f;
+            }
+            else
+            {
+                if (UnityEngine.Input.GetKey(KeyCode.A)) h = -1f;
+                if (UnityEngine.Input.GetKey(KeyCode.D)) h =  1f;
+            }
 
             if (Mathf.Abs(h) < 0.01f) return;
 

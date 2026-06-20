@@ -9,8 +9,9 @@ namespace KiForge.Bootstrap
 {
     public sealed class KiForgeArenaBootstrap : MonoBehaviour
     {
-        private const int   MaxHealth   = 400;
-        private const int   PunchDamage = 5;
+        private const int   MaxHealth    = 400;
+        private const int   PunchDamage  = 10;
+        private const float ContactRange = 2.5f;
 
         private void Awake()
         {
@@ -34,7 +35,10 @@ namespace KiForge.Bootstrap
                 playerFighter.Impact += (src, tgt) =>
                 {
                     if (bossHealth.IsDefeated) return;
+                    // Only register damage if fighters are in physical contact range
+                    if (tgt != null && Vector3.Distance(src.transform.position, tgt.position) > ContactRange) return;
                     bossHealth.ApplyDamage(PunchDamage);
+                    bossFighter.PlayPain();
                     if (bossHealth.IsDefeated)
                     {
                         bossFighter.PlayDying();
@@ -45,8 +49,10 @@ namespace KiForge.Bootstrap
                 bossFighter.Impact += (src, tgt) =>
                 {
                     if (playerHealth.Health <= 0) return;
+                    if (tgt != null && Vector3.Distance(src.transform.position, tgt.position) > ContactRange) return;
                     playerHealth.ApplyDamage(PunchDamage);
-                    if (playerHealth.Health <= 0)
+                    playerFighter.PlayPain();
+                    if (playerHealth.IsDefeated)
                     {
                         playerFighter.PlayDying();
                         bossFighter.StopLoop();
@@ -56,12 +62,12 @@ namespace KiForge.Bootstrap
                 var hud = new GameObject("HUD").AddComponent<HealthBarUI>();
                 hud.Setup(playerHealth, bossHealth);
 
-                // Walking — player: arrow keys, boss: AI
+                // Player 1: WASD    Player 2: Arrow keys
                 var playerWalk = player.AddComponent<PlayerWalkController>();
-                playerWalk.Initialize(3.0f, -4.5f, 4.5f);
+                playerWalk.Initialize(3.0f, -4.5f, 4.5f, arrowKeys: false);
 
-                var bossWalk = boss.AddComponent<BossWalkController>();
-                bossWalk.Initialize(player.transform, 1.8f, 2.8f, -4.5f, 4.5f);
+                var bossWalk = boss.AddComponent<PlayerWalkController>();
+                bossWalk.Initialize(3.0f, -4.5f, 4.5f, arrowKeys: true);
             }
         }
 

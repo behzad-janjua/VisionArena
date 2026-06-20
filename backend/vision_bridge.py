@@ -88,6 +88,18 @@ def _blocking_init(PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptio
     if not cap.isOpened():
         raise RuntimeError("Camera index 0 not available")
 
+    # Warm up and verify we can actually read (triggers macOS permission check)
+    for _ in range(10):
+        ret, _ = cap.read()
+        if ret:
+            break
+    else:
+        cap.release()
+        raise RuntimeError(
+            "Camera opened but cannot read frames — grant Camera permission to Terminal "
+            "in System Settings > Privacy & Security > Camera"
+        )
+
     options = PoseLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=_MODEL_PATH),
         running_mode=RunningMode.VIDEO,
