@@ -1,0 +1,1 @@
+"""KiForge Arena backend package."""
