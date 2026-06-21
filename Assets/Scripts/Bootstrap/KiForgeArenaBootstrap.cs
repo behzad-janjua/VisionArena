@@ -164,6 +164,14 @@ namespace KiForge.Bootstrap
                 // --- Caption bar: scrolling commentator log at the bottom (persists) ---
                 var captions = new GameObject("CaptionBarUI").AddComponent<CaptionBarUI>();
                 captions.Setup(eventBus);
+
+                // --- Damage numbers: static red labels below each health bar ---
+                var dmgNumbers = new GameObject("DamageNumberUI").AddComponent<DamageNumberUI>();
+                dmgNumbers.Setup(playerHealth, bossHealth);
+
+                // --- AI Fight Lab panel: Tab to toggle, polls /demo/fight-lab ---
+                var fightLab = new GameObject("FightLabPanelUI").AddComponent<FightLabPanelUI>();
+                fightLab.Setup();
             }
         }
 

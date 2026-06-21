@@ -187,7 +187,6 @@ def demo_recap() -> dict[str, Any]:
     return {
         "latest_prompt": latest_response.get("recap_prompt", ""),
         "latest_job": latest_response.get("recap_job", {}),
-        "queued_jobs": state["recap_jobs"],
     }
 
 
