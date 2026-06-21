@@ -293,19 +293,10 @@ def demo_recap_set_url(player_id: str = "demo_player", url: str = "", job_id: st
 
 @app.get("/demo/recap/pending-prompt")
 def demo_recap_pending_prompt(player_id: str = "demo_player") -> dict[str, Any]:
-    """Returns the most recent recap prompt so an external tool (e.g. Pika MCP) can generate the video."""
-    import json as _json
-    from pathlib import Path as _Path
-    queue_path = _Path(__file__).parent / "recap_jobs.jsonl"
-    if not queue_path.exists():
-        return {"prompt": "", "job_id": ""}
-    lines = [l for l in queue_path.read_text().splitlines() if l.strip()]
-    if not lines:
-        return {"prompt": "", "job_id": ""}
-    latest = _json.loads(lines[-1])
-    if latest.get("metadata", {}).get("player_id", player_id) != player_id:
-        return {"prompt": "", "job_id": ""}
-    return {"prompt": latest.get("prompt", ""), "job_id": latest.get("job_id", "")}
+    """Returns the most recent fight-specific cinematic recap prompt for external video generation."""
+    state = _game_master.demo_state(player_id)
+    prompt = state["latest_response"].get("recap_prompt", "")
+    return {"prompt": prompt, "player_id": player_id}
 
 
 @app.post("/demo/combat")

@@ -73,7 +73,7 @@ class GameMasterAgent:
         evaluated_event = CombatTelemetry(**{**event.__dict__, "boss_action": boss_action})
         counter_success = _counter_success(boss_action, event.outcome)
 
-        self.highlights.record(evaluated_event, move_name)
+        self.highlights.record(evaluated_event, move_name, narration)
         self.events.append(evaluated_event)
         # Store counter_success alongside the event so build_player_profile can compute before/after.
         self.store.append_match_event(player_id, {**evaluated_event.__dict__, "counter_success": counter_success})

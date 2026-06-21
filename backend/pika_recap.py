@@ -59,14 +59,17 @@ class FightHighlights:
     player_won: bool = False
 
     _move_name_log: list[tuple[int, str]] = field(default_factory=list)
+    _narration_log: list[str] = field(default_factory=list)
 
-    def record(self, event: CombatTelemetry, move_name: str = "") -> None:
+    def record(self, event: CombatTelemetry, move_name: str = "", narration: str = "") -> None:
         self.rounds_played += 1
         self.total_player_dmg += max(0, event.damage_dealt_by_player)
         self.total_boss_dmg += max(0, event.damage_dealt_by_boss)
 
         if move_name:
             self._move_name_log.append((event.round, move_name))
+        if narration:
+            self._narration_log.append(narration)
 
         if self.first_blood is None and event.damage_dealt_by_player > 0:
             self.first_blood = event
@@ -162,13 +165,23 @@ def build_cinematic_prompt(highlights: FightHighlights) -> str:
         f"player dealt {highlights.total_player_dmg} total damage."
     )
 
+    # Weave up to 2 of the most evocative commentator lines into the brief.
+    narration_note = ""
+    if highlights._narration_log:
+        picks = highlights._narration_log[-2:]  # last two lines tend to be the most dramatic
+        narration_note = "Commentator highlights: " + " / ".join(f'"{n}"' for n in picks) + "."
+
     style_note = (
         "Visual style: Hajime no Ippo x JoJo's Bizarre Adventure — "
         "neon arena, impact frames, speed lines, cinematic lighting, no text overlays, "
         "anime shading, 7 seconds total, smooth camera transitions between shots."
     )
 
-    return " ".join(shots) + " " + stats_note + " " + style_note
+    parts = [" ".join(shots), stats_note]
+    if narration_note:
+        parts.append(narration_note)
+    parts.append(style_note)
+    return " ".join(parts)
 
 
 # ---------------------------------------------------------------------------

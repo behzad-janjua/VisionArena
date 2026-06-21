@@ -6,6 +6,7 @@ using KiForge.Shared;
 using KiForge.Telemetry;
 using KiForge.UI;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace KiForge.Bootstrap
 {
@@ -22,8 +23,17 @@ namespace KiForge.Bootstrap
         private void Awake()
         {
             EnsureCamera();
+            EnsureEventSystem();
             var callScreen = new GameObject("BossCallScreen").AddComponent<KiForge.UI.BossCallUI>();
             callScreen.Setup(null, "demo_player", InitArena);
+        }
+
+        private static void EnsureEventSystem()
+        {
+            if (FindObjectOfType<EventSystem>() != null) return;
+            var es = new GameObject("EventSystem");
+            es.AddComponent<EventSystem>();
+            es.AddComponent<StandaloneInputModule>();
         }
 
         private void InitArena()
