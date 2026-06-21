@@ -13,9 +13,9 @@ namespace KiForge.Combat
         public int levelTwoDamage = 24;
         public int levelThreeDamage = 42;
         public int levelFourDamage = 65;
-        public int slashDamage = 18;
-        public int ultimateDamage = 88;
-        public float beamRange = 9f;
+        public int quickPunchDamage = 18;
+        public int veryHeavyPunchDamage = 88;
+        public float punchReach = 9f;
 
         public int ChargeLevel(float holdSeconds)
         {

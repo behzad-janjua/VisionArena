@@ -68,7 +68,7 @@ namespace KiForge.Combat
 
             var origin = source.transform.position + Vector3.up * 0.7f;
             var direction = target.position.x > source.transform.position.x ? Vector2.right : Vector2.left;
-            effects.ShowSlash(origin, direction);
+            effects.ShowQuickPunchTrail(origin, direction);
             effects.ShowPainBurst(target.position + Vector3.up * 0.75f);
             effects.ScreenShake();
         }

@@ -7,7 +7,7 @@ namespace KiForge.Effects
     {
         private Transform playerRoot;
         private GameObject aura;
-        private GameObject shield;
+        private GameObject guard;
         private Camera mainCamera;
 
         public void Initialize(Transform player)
@@ -15,9 +15,9 @@ namespace KiForge.Effects
             playerRoot = player;
             mainCamera = Camera.main;
             aura = CreateDisc("Charge Aura", new Color(0.2f, 0.85f, 1f, 0.35f), 1.2f);
-            shield = CreateDisc("Shield Arc", new Color(0.4f, 1f, 0.8f, 0.42f), 1.8f);
+            guard = CreateDisc("Guard Arc", new Color(0.4f, 1f, 0.8f, 0.42f), 1.8f);
             aura.SetActive(false);
-            shield.SetActive(false);
+            guard.SetActive(false);
         }
 
         private void LateUpdate()
@@ -32,9 +32,9 @@ namespace KiForge.Effects
                 aura.transform.position = playerRoot.position + Vector3.up * 0.2f;
             }
 
-            if (shield != null)
+            if (guard != null)
             {
-                shield.transform.position = playerRoot.position + new Vector3(0.7f, 0.25f, -0.1f);
+                guard.transform.position = playerRoot.position + new Vector3(0.7f, 0.25f, -0.1f);
             }
         }
 
@@ -55,18 +55,18 @@ namespace KiForge.Effects
             }
         }
 
-        public void ShowShield(bool visible)
+        public void ShowGuard(bool visible)
         {
-            if (shield != null)
+            if (guard != null)
             {
-                shield.SetActive(visible);
+                guard.SetActive(visible);
             }
         }
 
-        public void FireBeam(Vector2 start, Vector2 end, int level)
+        public void ShowHeavyPunchTrail(Vector2 start, Vector2 end, int level)
         {
-            var beam = new GameObject("Energy Beam");
-            var line = beam.AddComponent<LineRenderer>();
+            var trail = new GameObject("Heavy Punch Trail");
+            var line = trail.AddComponent<LineRenderer>();
             line.positionCount = 2;
             line.SetPosition(0, start);
             line.SetPosition(1, end);
@@ -75,14 +75,14 @@ namespace KiForge.Effects
             line.material = new Material(Shader.Find("Sprites/Default"));
             line.startColor = new Color(0.1f, 0.85f, 1f, 1f);
             line.endColor = new Color(1f, 0.95f, 0.35f, 0.7f);
-            StartCoroutine(FadeAndDestroy(beam, 0.22f));
+            StartCoroutine(FadeAndDestroy(trail, 0.22f));
             ScreenShake();
         }
 
-        public void ShowSlash(Vector2 origin, Vector2 direction)
+        public void ShowQuickPunchTrail(Vector2 origin, Vector2 direction)
         {
-            var slash = new GameObject("Slash Trail");
-            var line = slash.AddComponent<LineRenderer>();
+            var trail = new GameObject("Quick Punch Trail");
+            var line = trail.AddComponent<LineRenderer>();
             line.positionCount = 3;
             var normal = new Vector2(-direction.y, direction.x);
             line.SetPosition(0, origin - normal * 1.1f);
@@ -93,7 +93,7 @@ namespace KiForge.Effects
             line.material = new Material(Shader.Find("Sprites/Default"));
             line.startColor = new Color(1f, 0.25f, 0.75f, 1f);
             line.endColor = new Color(0.2f, 0.9f, 1f, 0.2f);
-            StartCoroutine(FadeAndDestroy(slash, 0.28f));
+            StartCoroutine(FadeAndDestroy(trail, 0.28f));
         }
 
                 public void ShowPainBurst(Vector2 origin)

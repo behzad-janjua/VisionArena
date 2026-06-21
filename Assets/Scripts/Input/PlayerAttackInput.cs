@@ -8,9 +8,8 @@ namespace KiForge.Input
     /// <summary>
     /// Human player attack controls (left fighter). Keyboard is the MYO/CV fallback:
     ///   J / K   = punch left / right
-    ///   U / I   = kick left / right
-    ///   O       = ultimate
-    ///   ; / '   = hold to block left / right
+    ///   U / I   = heavy punch / very-heavy punch
+    ///   ; / '   = hold to guard left / right
     ///   B (hold)= MYO fist charge -> release for normal / heavy / very-heavy punch
     /// All actions funnel through <see cref="AttackThrown"/> / <see cref="Blocked"/> so
     /// the boss AI and Arize coach can observe the player's style.
@@ -63,9 +62,8 @@ namespace KiForge.Input
 
             if (UnityEngine.Input.GetKeyDown(KeyCode.J)) Throw(AttackType.PunchLeft);
             else if (UnityEngine.Input.GetKeyDown(KeyCode.K)) Throw(AttackType.PunchRight);
-            else if (UnityEngine.Input.GetKeyDown(KeyCode.U)) Throw(AttackType.KickLeft);
-            else if (UnityEngine.Input.GetKeyDown(KeyCode.I)) Throw(AttackType.KickRight);
-            else if (UnityEngine.Input.GetKeyDown(KeyCode.O)) Throw(AttackType.Ultimate);
+            else if (UnityEngine.Input.GetKeyDown(KeyCode.U)) Throw(AttackType.HeavyPunch);
+            else if (UnityEngine.Input.GetKeyDown(KeyCode.I)) Throw(AttackType.VeryHeavyPunch);
         }
 
         private void HandleBlocking()
@@ -87,6 +85,20 @@ namespace KiForge.Input
                 blocking = false;
                 fighter.StopBlock();
             }
+        }
+
+        /// <summary>
+        /// Commit an attack from an external input source (CV gesture, MYO, network).
+        /// Respects the same block/defeat gating as keyboard input.
+        /// </summary>
+        public void ThrowExternal(AttackType type)
+        {
+            if (fighter == null || fighter.IsDefeated || blocking)
+            {
+                return;
+            }
+
+            Throw(type);
         }
 
         private void OnMyoPunch(AttackType type)

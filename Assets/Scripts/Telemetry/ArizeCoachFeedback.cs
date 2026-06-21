@@ -96,21 +96,21 @@ namespace KiForge.Telemetry
         private string InferStyle()
         {
             var heavy = Count(AttackType.HeavyPunch) + Count(AttackType.VeryHeavyPunch) + Count(AttackType.Ultimate);
-            var kicks = Count(AttackType.KickLeft) + Count(AttackType.KickRight);
+            var quickPunches = Count(AttackType.PunchLeft) + Count(AttackType.PunchRight);
 
             if (blocksRaised >= Mathf.Max(3, totalAttempts))
             {
-                return "shield_turtle";
+                return "guard_turtle";
             }
 
             if (totalAttempts >= 4 && heavy >= totalAttempts * 0.5f)
             {
-                return "patient_charger";
+                return "heavy_puncher";
             }
 
-            if (kicks >= Mathf.Max(3, totalAttempts * 0.6f))
+            if (quickPunches >= Mathf.Max(3, totalAttempts * 0.6f))
             {
-                return "slash_spammer";
+                return "combo_puncher";
             }
 
             return "balanced";
@@ -131,7 +131,7 @@ namespace KiForge.Telemetry
             // Coaching aimed at the player's weakest dimension.
             if (totalAttempts >= 4 && Variety < 0.4f)
             {
-                return "You're predictable — mix punches (J/K), kicks (U/I) and heavies.";
+                return "You're predictable - mix quick punches (J/K), heavy punch (U), and very-heavy punch (I).";
             }
 
             if (totalAttempts >= 4 && Accuracy < 0.4f)

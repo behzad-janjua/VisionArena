@@ -23,7 +23,9 @@ Demo endpoints:
 - `GET /demo/stream` returns recent entries from the Redis match telemetry stream.
 - `POST /demo/combat` accepts a `CombatTelemetry` JSON object and returns an agent response.
 - `POST /agent/combat` is the stable Agentverse/API endpoint for external integration.
+- `POST /agent/chat` is the FastAPI chat endpoint for Agentverse: send `{"message":"start duel"}`.
 - `GET /agent/state` exposes the external-agent memory/state view.
+- `GET /agent/manifest` exposes a small capability card for setup.
 
 ## Redis usage
 
@@ -57,10 +59,29 @@ python -m backend.myo_listener --ws ws://127.0.0.1:8000/ws/unity --repeat 3
 
 ## Agentverse + ASI:One (Fetch.ai)
 
-The GameMasterAgent registers on Agentverse using **External Integration** — it runs
+If Agentverse asks you to **Choose your agent stack**, pick **FastAPI** for the
+external endpoint route. Point it at the public URL for:
+
+```text
+POST /agent/chat
+```
+
+Use this body for a smoke test:
+
+```json
+{"message":"start duel","player_id":"agentverse_player"}
+```
+
+For structured combat turns, use:
+
+```text
+POST /agent/combat
+```
+
+Battle Agent registers on Agentverse using **External Integration** — it runs
 locally and connects via a **Mailbox**, so there's no public server to host. It
 publishes two protocols: the **Agent Chat Protocol (ACP)** for ASI:One, and a
-structured `kiforge_combat` protocol for the Unity client.
+structured `battle_combat` protocol for the Unity client.
 
 ```bash
 # (uses port 8001 so it doesn't collide with the FastAPI backend on 8000)
@@ -72,7 +93,7 @@ registration:
 
 1. Open the printed `https://agentverse.ai/inspect/?...` link (log in to Agentverse).
 2. Click **Create Mailbox** — this links the locally-running agent to Agentverse.
-3. Open **ASI:One**, search for the agent by name (`kiforge_game_master`) or address,
+3. Open **ASI:One**, search for the agent by name (`battle_agent`) or address,
    and chat: say `start duel` to run a demo turn, or paste `CombatTelemetry` JSON.
 
 Set `FETCH_AI_AGENT_SEED` in `.env` to keep a stable agent address across restarts

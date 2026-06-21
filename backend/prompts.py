@@ -22,10 +22,10 @@ from typing import Any
 # --------------------------------------------------------------------------- #
 
 NARRATOR_SYSTEM = (
-    "You are the NarratorAgent for KiForge Arena, a real-time anime boss fight. "
-    "You invent a flashy two-to-four-word attack name and one punchy line of "
+    "You are the NarratorAgent for a real-time anime boxing boss fight. "
+    "You invent a clear two-to-four-word punch name and one punchy line of "
     "commentary (max 18 words) describing what just happened. Tone: shonen anime "
-    "announcer — dramatic, energetic, never breaks character. "
+    "announcer - dramatic, energetic, never breaks character. Only describe punches and guard; do not invent non-punch attacks. "
     "Respond with ONLY minified JSON: "
     '{"move_name": "...", "narration": "..."}. No markdown, no extra keys.'
 )
@@ -60,8 +60,8 @@ ENEMY_REASONING_SYSTEM = (
 )
 
 ENEMY_REASONING_USER_TEMPLATE = (
-    "Player style: {style}. Stats — blast_rate {blast_rate:.0%}, block_rate {block_rate:.0%}, "
-    "slash_rate {slash_rate:.0%}, avg_charge_time {avg_charge_time:.1f}s. "
+    "Player style: {style}. Stats — heavy_punch_rate {heavy_punch_rate:.0%}, guard_rate {guard_rate:.0%}, "
+    "combo_punch_rate {combo_punch_rate:.0%}, avg_charge_time {avg_charge_time:.1f}s. "
     "The boss has chosen to '{boss_action}' (strategy: {strategy}). "
     "Explain why this counters the player."
 )
@@ -70,9 +70,9 @@ ENEMY_REASONING_USER_TEMPLATE = (
 def enemy_reasoning_messages(profile: dict[str, Any], boss_action: str, strategy: str) -> list[dict[str, str]]:
     fields = {
         "style": profile.get("style", "balanced"),
-        "blast_rate": float(profile.get("blast_rate", 0.0)),
-        "block_rate": float(profile.get("block_rate", 0.0)),
-        "slash_rate": float(profile.get("slash_rate", 0.0)),
+        "heavy_punch_rate": float(profile.get("heavy_punch_rate", 0.0)),
+        "guard_rate": float(profile.get("guard_rate", 0.0)),
+        "combo_punch_rate": float(profile.get("combo_punch_rate", 0.0)),
         "avg_charge_time": float(profile.get("avg_charge_time", 0.0)),
         "boss_action": boss_action,
         "strategy": strategy,
@@ -96,7 +96,7 @@ COACH_SYSTEM = (
 
 COACH_USER_TEMPLATE = (
     "Player style: {style}. Over {events_seen} actions they used "
-    "{blasts} charged blasts, {shields} shields, {slashes} slashes, {ultimates} ultimates. "
+    "{heavy_punches} heavy punches, {guards} guards, {combo_punches} combo punches, {very_heavy_punches} very-heavy punches. "
     "Favorite move: {favorite_move}. The boss is now adapting to: {boss_adaptation}. "
     "Give one tip."
 )
@@ -106,10 +106,10 @@ def coach_messages(profile: dict[str, Any], boss_adaptation: str) -> list[dict[s
     fields = {
         "style": profile.get("style", "balanced"),
         "events_seen": profile.get("events_seen", 0),
-        "blasts": profile.get("blast_rate", 0.0),
-        "shields": profile.get("blocks_used", 0),
-        "slashes": profile.get("slashes_used", 0),
-        "ultimates": profile.get("ultimates_used", 0),
+        "heavy_punches": profile.get("heavy_punch_rate", 0.0),
+        "guards": profile.get("guards_used", 0),
+        "combo_punches": profile.get("combo_punches_used", 0),
+        "very_heavy_punches": profile.get("very_heavy_punches_used", 0),
         "favorite_move": profile.get("favorite_move", "none"),
         "boss_adaptation": boss_adaptation,
     }
@@ -127,8 +127,8 @@ def coach_messages(profile: dict[str, Any], boss_adaptation: str) -> list[dict[s
 RECAP_SYSTEM = (
     "You are the RecapAgent / AI director for KiForge Arena. From real match "
     "telemetry you write a single vivid prompt for Pika to generate a ~7 second "
-    "anime-style battle recap video. Always: neon arena setting, a fighter charging "
-    "energy in their fist, the named finisher, fast camera, impact flash, cinematic "
+    "anime-style boxing recap video. Always: neon arena setting, a fighter winding up "
+    "a named punch, tight footwork, fast camera, impact flash, cinematic "
     "lighting, dramatic ending. Keep it under 60 words. "
     'Respond with ONLY minified JSON: {"recap_prompt": "..."}. No markdown.'
 )

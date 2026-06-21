@@ -1,20 +1,19 @@
 using KiForge.Animation;
+using KiForge.Combat;
 using KiForge.Shared;
 using UnityEngine;
 
 namespace KiForge.Input
 {
     /// <summary>
-    /// Applies live CV pose data to the player.
+    /// Test mapping for CV hand gestures (MediaPipe GestureRecognizer via the backend):
     ///
-    /// Body-center X → player horizontal position (drives the fighter's home so
-    /// locomotion animation and post-attack return still work).
-    /// Wrist position → world-space aim reticle.
+    ///   Closed fist  -> throw a punch (edge-triggered: one punch per fist-close)
+    ///   Open palm    -> walk forward toward the opponent
     ///
-    /// While confident CV frames are arriving, body tracking owns movement and the
-    /// keyboard <see cref="PlayerWalkController"/> is disabled. If frames go stale
-    /// (camera unplugged, person leaves frame) movement reverts to the keyboard so
-    /// the demo never gets stuck.
+    /// While confident gesture frames arrive, CV owns movement and the keyboard
+    /// <see cref="PlayerWalkController"/> is disabled. If frames go stale (hand leaves
+    /// frame, camera drops) control reverts to the keyboard so the demo never sticks.
     /// </summary>
     public sealed class CvAimController : MonoBehaviour
     {
@@ -22,53 +21,44 @@ namespace KiForge.Input
         [SerializeField] private Transform playerTransform;
         [SerializeField] private FighterAnimationController fighter;
         [SerializeField] private PlayerWalkController walkController;
+        [SerializeField] private PlayerAttackInput attackInput;
 
-        [Header("Camera Mirror")]
-        [Tooltip("Flip X axis — enable for typical selfie/mirror webcams")]
-        [SerializeField] private bool flipCameraX = true;
-
-        [Header("World-Space Mapping")]
-        [Tooltip("Body-center [0,1] maps across this half-width of horizontal travel")]
-        [SerializeField] private float playerHalfRange = 4.5f;
-        [Tooltip("Horizontal bias added to the mapped body-center X")]
-        [SerializeField] private float playerCenterBias = 0f;
+        [Header("Movement")]
+        [SerializeField] private float moveSpeed = 1.3f;
         [SerializeField] private float leftBound = -4.5f;
         [SerializeField] private float rightBound = 4.5f;
-        [SerializeField] private float wristWorldScaleX = 5f;
-        [SerializeField] private float wristWorldScaleY = 4f;
-        [SerializeField] private float wristWorldOffsetY = 0.5f;
 
-        [Header("Smoothing")]
-        [Tooltip("Max horizontal units per second the body-tracked player travels")]
-        [SerializeField] private float moveSpeed = 6f;
-        [SerializeField] private float reticleSmoothSpeed = 20f;
+        [Header("Gesture Punch")]
+        [SerializeField] private AttackType punchType = AttackType.PunchRight;
 
         [Header("Confidence / Staleness")]
-        [SerializeField] private float confidenceThreshold = 0.4f;
-        [Tooltip("If no confident frame arrives within this many seconds, hand movement back to keyboard")]
-        [SerializeField] private float poseTimeout = 1.0f;
+        [SerializeField] private float confidenceThreshold = 0.5f;
+        [Tooltip("If no confident frame arrives within this many seconds, hand control back to keyboard")]
+        [SerializeField] private float poseTimeout = 1.5f;
+
+        [Header("Debug")]
+        [Tooltip("Log gesture frames, CV ownership flips, and punch/walk actions to the Console")]
+        [SerializeField] private bool debugLog = true;
 
         private KiForgeEventBus eventBus;
-        private float targetPlayerX;
-        private Vector3 targetReticlePos;
-        private GameObject reticleObj;
+        private string currentGesture = "none";
         private float lastPoseTime = -999f;
         private bool cvOwnsMovement;
+        private bool fistActive;
+        private bool wasWalking;
 
-        /// <summary>World-space wrist position from the latest CV frame.</summary>
-        public Vector2 WorldWristPosition { get; private set; }
-
-        /// <summary>True once at least one confident CV frame has been received.</summary>
-        public bool HasLivePose { get; private set; }
-
-        /// <summary>True while CV (not keyboard) is currently driving movement.</summary>
+        /// <summary>True while CV (not keyboard) is currently driving the player.</summary>
         public bool CvActive => cvOwnsMovement;
+
+        /// <summary>Most recent recognized gesture ("fist", "open_palm", "none").</summary>
+        public string CurrentGesture => currentGesture;
 
         public void Initialize(
             KiForgeEventBus bus,
             Transform player,
             FighterAnimationController playerFighter,
             PlayerWalkController walk,
+            PlayerAttackInput attack,
             float left,
             float right)
         {
@@ -76,13 +66,10 @@ namespace KiForge.Input
             playerTransform = player;
             fighter = playerFighter;
             walkController = walk;
+            attackInput = attack;
             leftBound = left;
             rightBound = right;
 
-            if (playerTransform != null)
-                targetPlayerX = playerTransform.position.x;
-
-            CreateReticle();
             eventBus.PoseReceived += OnPose;
         }
 
@@ -94,47 +81,47 @@ namespace KiForge.Input
 
         private void OnPose(PoseEvent pose)
         {
-            if (pose.confidence < confidenceThreshold)
+            // Synthetic frames (mock stream, no real camera) must not take control away
+            // from the keyboard. Only real-camera gestures own movement.
+            if (pose.mock || pose.confidence < confidenceThreshold)
                 return;
 
-            HasLivePose = true;
+            var g = string.IsNullOrEmpty(pose.gesture) ? "none" : pose.gesture;
+            if (debugLog && g != currentGesture)
+                Debug.Log($"[CV] gesture -> {g} (conf {pose.confidence:0.00})");
+            currentGesture = g;
             lastPoseTime = Time.time;
-
-            float cx = pose.bodyCenter.x;
-            float wx = pose.wrist.x;
-            float wy = pose.wrist.y;
-
-            if (flipCameraX)
-            {
-                cx = 1f - cx;
-                wx = 1f - wx;
-            }
-
-            // Body center [0,1] → world X
-            float worldX = (cx - 0.5f) * 2f * playerHalfRange + playerCenterBias;
-            targetPlayerX = Mathf.Clamp(worldX, leftBound, rightBound);
-
-            // Wrist [0,1] → world-space reticle
-            float wrx = (wx - 0.5f) * wristWorldScaleX;
-            float wry = (wy - 0.5f) * wristWorldScaleY + wristWorldOffsetY;
-            WorldWristPosition = new Vector2(wrx, wry);
-            targetReticlePos = new Vector3(wrx, wry, -0.3f);
         }
 
         private void Update()
         {
-            bool fresh = HasLivePose && Time.time - lastPoseTime <= poseTimeout;
+            bool fresh = Time.time - lastPoseTime <= poseTimeout;
             SetCvOwnership(fresh);
 
             if (!cvOwnsMovement)
-            {
-                if (reticleObj != null)
-                    reticleObj.SetActive(false);
                 return;
+
+            // Fist -> punch, edge-triggered so a held fist fires exactly once.
+            if (currentGesture == "fist")
+            {
+                if (!fistActive)
+                {
+                    fistActive = true;
+                    if (debugLog)
+                        Debug.Log($"[CV] FIST -> punch ({punchType}); attackInput={(attackInput != null)}");
+                    attackInput?.ThrowExternal(punchType);
+                }
+            }
+            else
+            {
+                fistActive = false;
             }
 
-            DriveMovement();
-            DriveReticle();
+            // Open palm -> walk forward toward the opponent.
+            if (currentGesture == "open_palm")
+                WalkForward();
+            else if (fighter != null && !fighter.IsAttacking)
+                fighter.StopLocomotion();
         }
 
         private void SetCvOwnership(bool fresh)
@@ -143,63 +130,48 @@ namespace KiForge.Input
                 return;
 
             cvOwnsMovement = fresh;
+            if (debugLog)
+                Debug.Log($"[CV] ownership -> {(fresh ? "CV" : "keyboard")}");
 
             // CV and keyboard must not both write the player's position in the same frame.
             if (walkController != null)
                 walkController.enabled = !fresh;
 
-            if (!fresh && fighter != null)
-                fighter.StopLocomotion();
-        }
-
-        private void DriveMovement()
-        {
-            if (playerTransform == null)
-                return;
-
-            // Let an in-progress attack (lunge + return-to-home) finish uninterrupted.
-            if (fighter != null && fighter.IsAttacking)
-                return;
-
-            float curX = playerTransform.position.x;
-            float newX = Mathf.Clamp(
-                Mathf.MoveTowards(curX, targetPlayerX, moveSpeed * Time.deltaTime),
-                leftBound,
-                rightBound);
-
-            var newPos = new Vector3(newX, playerTransform.position.y, playerTransform.position.z);
-            playerTransform.position = newPos;
-
-            if (fighter != null)
+            if (!fresh)
             {
-                fighter.SetHome(newPos);
-                float delta = newX - curX;
-                if (Mathf.Abs(delta) > 0.0005f)
-                    fighter.SetLocomotion(Mathf.Sign(delta));
-                else
+                fistActive = false;
+                if (fighter != null)
                     fighter.StopLocomotion();
             }
         }
 
-        private void DriveReticle()
+        private void WalkForward()
         {
-            if (reticleObj == null)
+            if (playerTransform == null || fighter == null || fighter.IsAttacking)
                 return;
 
-            reticleObj.SetActive(true);
-            reticleObj.transform.position = Vector3.Lerp(
-                reticleObj.transform.position, targetReticlePos, Time.deltaTime * reticleSmoothSpeed);
-        }
+            float dir = fighter.ForwardSign; // +1 if opponent is to the right, else -1
+            float curX = playerTransform.position.x;
+            float newX = Mathf.Clamp(curX + dir * moveSpeed * Time.deltaTime, leftBound, rightBound);
 
-        private void CreateReticle()
-        {
-            reticleObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            reticleObj.name = "CV Wrist Reticle";
-            reticleObj.transform.localScale = Vector3.one * 0.22f;
-            reticleObj.GetComponent<Renderer>().material =
-                new Material(Shader.Find("Sprites/Default")) { color = new Color(0.1f, 1f, 0.5f, 0.7f) };
-            Object.Destroy(reticleObj.GetComponent<Collider>());
-            reticleObj.SetActive(false);
+            var newPos = new Vector3(newX, playerTransform.position.y, playerTransform.position.z);
+            playerTransform.position = newPos;
+            fighter.SetHome(newPos);
+
+            if (Mathf.Abs(newX - curX) > 0.0005f)
+            {
+                if (debugLog && !wasWalking)
+                {
+                    wasWalking = true;
+                    Debug.Log($"[CV] OPEN PALM -> walking, x {curX:0.00} -> {newX:0.00}");
+                }
+                fighter.SetLocomotion(dir);
+            }
+            else
+            {
+                wasWalking = false;
+                fighter.StopLocomotion();
+            }
         }
     }
 }

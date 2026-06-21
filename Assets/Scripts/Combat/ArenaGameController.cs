@@ -88,31 +88,31 @@ namespace KiForge.Combat
                     currentCharge = gesture.charge;
                     effects.SetAuraPower(gesture.charge);
                     break;
-                case GestureEventType.BlastRelease:
-                    ResolveBlast(gesture);
+                case GestureEventType.HeavyPunchRelease:
+                    ResolveHeavyPunch(gesture);
                     break;
-                case GestureEventType.ShieldStart:
-                    player.SetShielding(true);
-                    effects.ShowShield(true);
-                    PublishTelemetry(PlayerActionType.Shield, 0f, 0, "shielded");
+                case GestureEventType.GuardStart:
+                    player.SetGuarding(true);
+                    effects.ShowGuard(true);
+                    PublishTelemetry(PlayerActionType.Guard, 0f, 0, "guarded");
                     break;
-                case GestureEventType.ShieldEnd:
-                    player.SetShielding(false);
-                    effects.ShowShield(false);
+                case GestureEventType.GuardEnd:
+                    player.SetGuarding(false);
+                    effects.ShowGuard(false);
                     break;
-                case GestureEventType.SlashLeft:
-                    ResolveSlash(PlayerActionType.SlashLeft, gesture.origin, Vector2.left);
+                case GestureEventType.LeftPunch:
+                    ResolveQuickPunch(PlayerActionType.LeftPunch, gesture.origin, Vector2.left);
                     break;
-                case GestureEventType.SlashRight:
-                    ResolveSlash(PlayerActionType.SlashRight, gesture.origin, Vector2.right);
+                case GestureEventType.RightPunch:
+                    ResolveQuickPunch(PlayerActionType.RightPunch, gesture.origin, Vector2.right);
                     break;
-                case GestureEventType.Ultimate:
-                    ResolveUltimate(gesture);
+                case GestureEventType.VeryHeavyPunch:
+                    ResolveVeryHeavyPunch(gesture);
                     break;
             }
         }
 
-        private void ResolveBlast(GestureEvent gesture)
+        private void ResolveHeavyPunch(GestureEvent gesture)
         {
             effects.ShowAura(false);
             var origin = AttackOrigin(gesture);
@@ -120,25 +120,25 @@ namespace KiForge.Combat
             var accuracy = Mathf.Lerp(0.65f, 1.15f, Mathf.Clamp01(Vector2.Dot(aim, Vector2.right) * 0.5f + 0.5f));
             var damage = config.DamageForCharge(gesture.holdSeconds, accuracy);
             boss.ApplyDamage(damage);
-            effects.FireBeam(origin, origin + aim * config.beamRange, config.ChargeLevel(gesture.holdSeconds));
-            PublishTelemetry(PlayerActionType.ChargedBlast, gesture.holdSeconds, damage, boss.IsDefeated ? "boss_ko" : "boss_hit");
+            effects.ShowHeavyPunchTrail(origin, origin + aim * config.punchReach, config.ChargeLevel(gesture.holdSeconds));
+            PublishTelemetry(PlayerActionType.HeavyPunch, gesture.holdSeconds, damage, boss.IsDefeated ? "boss_ko" : "heavy_punch_hit");
         }
 
-        private void ResolveSlash(PlayerActionType action, Vector2 origin, Vector2 direction)
+        private void ResolveQuickPunch(PlayerActionType action, Vector2 origin, Vector2 direction)
         {
             var o = hasCvWrist ? latestCvWrist : origin;
-            boss.ApplyDamage(config.slashDamage);
-            effects.ShowSlash(o, direction);
-            PublishTelemetry(action, 0f, config.slashDamage, boss.IsDefeated ? "boss_ko" : "slash_hit");
+            boss.ApplyDamage(config.quickPunchDamage);
+            effects.ShowQuickPunchTrail(o, direction);
+            PublishTelemetry(action, 0f, config.quickPunchDamage, boss.IsDefeated ? "boss_ko" : "quick_punch_hit");
         }
 
-        private void ResolveUltimate(GestureEvent gesture)
+        private void ResolveVeryHeavyPunch(GestureEvent gesture)
         {
             var origin = AttackOrigin(gesture);
-            boss.ApplyDamage(config.ultimateDamage);
-            effects.FireBeam(origin, origin + gesture.aim.normalized * config.beamRange, 4);
+            boss.ApplyDamage(config.veryHeavyPunchDamage);
+            effects.ShowHeavyPunchTrail(origin, origin + gesture.aim.normalized * config.punchReach, 4);
             effects.ScreenShake();
-            PublishTelemetry(PlayerActionType.Ultimate, gesture.holdSeconds, config.ultimateDamage, boss.IsDefeated ? "boss_ko" : "ultimate_hit");
+            PublishTelemetry(PlayerActionType.VeryHeavyPunch, gesture.holdSeconds, config.veryHeavyPunchDamage, boss.IsDefeated ? "boss_ko" : "very_heavy_punch_hit");
         }
 
         private void PublishTelemetry(PlayerActionType action, float chargeTime, int damage, string outcome)

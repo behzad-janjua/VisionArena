@@ -4,18 +4,18 @@
 
 **Title:** KiForge Arena  
 **Main Track:** Ddoski’s Playground  
-**Core Pitch:** A real-time anime boss-fight game where your muscle gestures control attacks, your webcam controls aim and movement, and AI agents run the enemy, narrator, coach, and post-fight cinematic recap.
+**Core Pitch:** A real-time anime boss-fight game where your computer-vision hand gestures control movement and punch timing, and AI agents run the enemy, narrator, coach, and post-fight recap.
 
 **Core Interaction:**
 
-- MYO armband + PyoMyo detects muscle gestures.
-- Computer vision tracks wrist, arm direction, and body position.
-- Holding a fist charges an energy attack.
-- Releasing the fist fires a blast aimed by the player’s arm.
+- Computer vision detects open palm and fist gestures.
+- Open palm drives player movement.
+- Closed fist throws a punch.
+- Longer punch windups create heavier punch tiers.
 - Fetch.ai agents run the game master, enemy behavior, narration, coaching, and recap workflow.
 - Arize traces and evaluates enemy decisions so the boss gets better at fighting the player.
-- Redis stores player style, boss memory, match history, and generated move names.
-- Pika generates post-fight anime-style recap videos from real match telemetry.
+- Redis stores player style, boss memory, match history, and generated punch names.
+- Pika generates post-fight boxing-style recap videos from real match telemetry.
 
 ---
 
@@ -34,9 +34,9 @@ This project is a game, an interactive experience, and an experimental AI interf
 | **Fetch AI** | Core agent system: GameMasterAgent, EnemyAgent, NarratorAgent, CoachAgent, RecapAgent. Agents should be registered on Agentverse and demoable through ASI:One. |
 | **Arize** | Traces and evaluates boss decisions, then uses those evaluations to improve the EnemyAgent’s strategy between rounds. |
 | **Redis** | Stores persistent player style, match history, boss strategy memory, cooldowns, generated move names, and recap data. |
-| **Pika** | Generates post-fight cinematic recap videos or ultimate-move trailers from match telemetry. |
+| **Pika** | Generates post-fight cinematic recap videos from match telemetry. |
 | **Band** | Optional: host EnemyAgent, RefereeAgent, NarratorAgent, and CoachAgent in a shared multi-agent room. |
-| **Deepgram** | Optional: voice commands such as “ultimate,” “start duel,” or AI announcer narration. |
+| **Deepgram** | Optional: voice commands such as “start duel,” “guard,” or AI announcer narration. |
 | **Sentry** | Optional: reliability/error monitoring for Unity, backend, and the agent pipeline. |
 
 ---
@@ -47,43 +47,38 @@ The ideal judge demo:
 
 1. You stand in front of the webcam.
 2. The game tracks your wrist and body position.
-3. You make a fist.
-4. The aura starts building around your hand.
-5. The charge bar fills as you hold the fist.
-6. Muscle intensity or hold duration increases the attack power.
-7. You aim with your arm.
-8. You release your fist.
-9. A huge beam fires from your hand toward the boss.
-10. The boss takes damage.
-11. The NarratorAgent names the move.
-12. Arize shows the boss decision trace and evaluation.
-13. The EnemyAgent adapts for the next round.
-14. At the end, the RecapAgent creates a Pika prompt for an anime-style battle recap.
+3. You open your palm to move forward.
+4. You close your fist to throw a punch.
+5. Longer windup creates a heavier punch.
+6. The boss takes damage if the punch lands in range.
+7. The NarratorAgent names the punch.
+8. Arize/Fight Lab shows the boss decision trace and evaluation.
+9. The boss starts with a bad baseline policy.
+10. Arize/Fight Lab catches the bad counter.
+11. Battle Agent adapts and chooses the correct punch counter on the next exchange.
+12. At the end, the RecapAgent creates a Pika prompt for a boxing-style recap.
 
 ---
 
 ## Input System
 
-### MYO / PyoMyo Gesture Map
+### Computer Vision Gesture Map
 
-| MYO Input | Game Action |
+| CV Input | Game Action |
 |---|---|
-| **Fist hold** | Charge energy attack |
-| **Fist release** | Fire charged blast |
-| **Fingers spread** | Block / energy shield |
-| **Wave right** | Right slash |
-| **Wave left** | Left slash |
-| **Thumb-to-pinky** | Switch stance, element, or special mode |
-| **Double tap** | Dash or ultimate |
-| **Hold spread** | Sustained shield |
-| **Wave → fist hold** | Elemental charged slash |
+| **Open palm** | Walk / move forward |
+| **Closed fist** | Throw punch |
+| **Short fist / quick tap** | Normal punch |
+| **Longer fist windup** | Heavy punch |
+| **Longest fist windup** | Very-heavy punch |
+| **Keyboard fallback** | Punch and guard controls when CV is unavailable |
 
 ### Computer Vision Map
 
 | CV Signal | Game Use |
 |---|---|
 | Wrist position | Aim reticle and attack origin |
-| Elbow-to-wrist vector | Blast direction |
+| Hand gesture state | Open palm movement or fist punch |
 | Body center x-position | Player movement |
 | Arm angle | High/mid/low targeting |
 | Pose stillness | Charge stability bonus |
@@ -91,11 +86,11 @@ The ideal judge demo:
 
 ### MVP CV Scope
 
-For the first version, only use:
+For the current version, only use:
 
-- Wrist position for aim.
-- Body center x-position for movement.
-- Elbow-to-wrist vector for blast direction.
+- Open palm for movement.
+- Closed fist for punch.
+- Keyboard fallback for explicit left/right/heavy punch testing.
 
 Avoid overbuilding CV during the hackathon.
 
@@ -103,51 +98,42 @@ Avoid overbuilding CV during the hackathon.
 
 ## Combat System
 
-### Charge Attack Mechanic
+### Punch Tier Mechanic
 
-| Charge Level | Hold Time | Attack |
+| Punch Tier | Windup / Input | Attack |
 |---|---:|---|
-| Level 1 | 0.3–1.0 sec | Small bolt |
-| Level 2 | 1.0–2.0 sec | Medium blast |
-| Level 3 | 2.0–3.5 sec | Beam attack |
-| Level 4 | 3.5+ sec | Ultimate cannon |
+| Level 1 | Quick fist / quick key press | Normal punch |
+| Level 2 | Medium windup | Heavy punch |
+| Level 3 | Longest windup | Very-heavy punch |
 
-### Charge Modifiers
+### Punch Modifiers
 
 | Condition | Result |
 |---|---|
-| Longer fist hold | More damage |
-| Higher EMG intensity | Faster charge or stronger aura |
-| Stable pose while charging | Accuracy multiplier |
-| Moving too much while charging | Accuracy penalty |
-| Holding too long | Overcharge instability |
-| Release during timing window | Critical hit |
-| Take damage while charging | Charge cancel or partial loss |
+| Longer fist windup | More punch damage |
+| Good spacing | Punch connects |
+| Too far from boss | Punch whiffs |
+| Guard timing | Incoming punch damage is reduced |
+| Boss adapts after bad eval | Better counter on next exchange |
 
 ### Core Actions
 
 | Action | Description |
 |---|---|
-| Punch / quick bolt | Short fist hold and release |
-| Charged blast | Long fist hold and release |
-| Shield | Fingers spread |
-| Slash left/right | Wave left/right |
-| Stance switch | Thumb-to-pinky |
-| Ultimate | Double tap when energy meter is full |
-| Counter blast | Shield, then fist release during enemy attack window |
+| Left punch | Quick left-hand strike |
+| Right punch | Quick right-hand strike |
+| Heavy punch | Slower, higher-damage punch |
+| Very-heavy punch | Slowest, highest-damage punch |
+| Guard | Blocks/reduces incoming punch damage |
+| Dodge | Boss slips out of range |
 
-### Example Combos
+### Example Punch Patterns
 
-| Combo | Move |
+| Pattern | Tactical Meaning |
 |---|---|
-| Fist → wave right | Fire slash |
-| Fist → wave left | Ice slash |
-| Spread → fist | Shield bash |
-| Wave left → wave right | Cross slash |
-| Thumb-to-pinky → fist | Elemental punch |
-| Double tap → spread | Ultimate barrier |
-| Hold fist 2+ sec → release | Charged beam |
-| Spread hold → fist | Counter cannon |
+| Repeated heavy punch | Player is a `heavy_puncher`; boss should pressure the windup |
+| Repeated guard | Player is a `guard_turtle`; boss should bait guard and heavy-counter |
+| Repeated quick punches | Player is a `combo_puncher`; boss should dodge and jab back |
 
 ---
 
@@ -160,11 +146,10 @@ For a 24-hour hackathon, do not build complex character animation. Use procedura
 - Dark arena background.
 - Neon player silhouette.
 - Boss silhouette.
-- Glowing aura particles.
-- Thick energy beams.
-- Slash trails.
-- Shield arcs.
-- Large anime-style move names.
+- Punch impact flashes.
+- Guard arcs.
+- Footwork and hit reactions.
+- Large anime-style punch names.
 - Screen shake on impact.
 
 ### Game States
@@ -172,25 +157,24 @@ For a 24-hour hackathon, do not build complex character animation. Use procedura
 | State | Visual Effect |
 |---|---|
 | `idle` | Slight bobbing |
-| `charging` | Aura particles + growing charge bar |
-| `blocking` | Translucent shield arc |
-| `slash_left` | Left fading slash trail |
-| `slash_right` | Right fading slash trail |
+| `winding_up` | Fighter commits to a heavier punch |
+| `guarding` | Translucent guard arc |
+| `left_punch` | Left punch animation |
+| `right_punch` | Right punch animation |
 | `dash` | Motion blur / quick displacement |
-| `blast` | Beam or projectile from wrist to target |
+| `heavy_punch` | Slower punch with stronger impact |
 | `hit` | Flash + knockback + damage number |
-| `ultimate` | Freeze frame + flash + screen shake |
+| `very_heavy_punch` | Big windup + flash + screen shake |
 | `ko` | Fade/drop animation |
 
 ### Effects to Build First
 
 | Effect | Implementation |
 |---|---|
-| Aura charge | Particles orbiting or moving toward the wrist |
-| Charge bar | UI rectangle fills based on fist hold time |
-| Beam blast | Thick line/capsule from wrist to target |
-| Slash trail | Curved arc fading over 250–300ms |
-| Shield | Semi-transparent arc/circle in front of player |
+| Punch windup | Animator windup / heavier punch tier |
+| Health bars | UI bars showing player and boss health |
+| Punch impact | Flash/knockback on contact |
+| Guard | Semi-transparent arc/circle in front of player |
 | Hit impact | Flash, knockback, screen shake, damage number |
 
 ### Animation Event Pipeline
@@ -217,7 +201,7 @@ The input layer should emit events like:
 
 ```json
 {
-  "type": "BLAST_RELEASE",
+  "type": "HEAVY_PUNCH_RELEASE",
   "charge": 0.94,
   "origin": { "x": 430, "y": 325 },
   "target": { "x": 760, "y": 260 }
@@ -248,7 +232,7 @@ The animation layer should respond to these events rather than directly dependin
 
 ### Recommended Choice
 
-Use **Unity 2.5D** for the hackathon implementation. Unity owns the real-time combat, input fallback, HUD, particles, beams, shields, and arena presentation. The Python backend owns hardware bridges, agents, Redis memory, Arize evals, and Pika recap generation.
+Use **Unity 2.5D** for the hackathon implementation. Unity owns the real-time combat, input fallback, HUD, punch impacts, guard timing, and arena presentation. The Python backend owns hardware bridges, agents, Redis memory, Arize evals, and Pika recap generation.
 
 ---
 
@@ -289,7 +273,7 @@ Player style memory, boss strategy memory, match history
 
 Pika
   ↓
-Post-fight anime recap / ultimate move trailer
+Post-fight boxing-style recap
 ```
 
 ---
@@ -317,13 +301,13 @@ Post-fight anime recap / ultimate move trailer
 
 ```json
 {
-  "event": "charged_attack_release",
-  "charge_level": 4,
-  "hold_seconds": 4.2,
+  "event": "heavy_punch_release",
+  "charge_level": 3,
+  "hold_seconds": 2.4,
   "accuracy": 0.81,
   "damage": 42,
   "boss_health_after": 18,
-  "player_style": "patient_charger"
+  "player_style": "heavy_puncher"
 }
 ```
 
@@ -331,10 +315,10 @@ Post-fight anime recap / ultimate move trailer
 
 ```json
 {
-  "move_name": "Solar Core Cannon",
-  "narration": "A perfect charge erupts across the arena.",
+  "move_name": "Heavy Punch",
+  "narration": "A heavy punch lands clean and knocks the boss off rhythm.",
   "boss_reaction": "staggered",
-  "next_strategy": "boss_becomes_aggressive"
+  "next_strategy": "pressure_long_windups"
 }
 ```
 
@@ -368,11 +352,11 @@ MatchTurn
 ```json
 {
   "round": 2,
-  "player_action": "charged_blast",
-  "charge_time": 3.8,
+  "player_action": "heavy_punch",
+  "charge_time": 2.4,
   "player_accuracy": 0.77,
-  "boss_action": "rush_attack",
-  "boss_reasoning": "Player overuses long charge attacks",
+  "boss_action": "pressure",
+  "boss_reasoning": "Player overuses long heavy-punch windups",
   "damage_dealt_by_player": 42,
   "damage_dealt_by_boss": 15,
   "boss_health_after": 38,
@@ -419,10 +403,10 @@ Examples to save:
 
 ```text
 Good decision:
-Player charged for 4.1s → boss used rush attack → interrupted charge.
+Player wound up a heavy punch → boss used pressure → interrupted the windup.
 
 Bad decision:
-Player spammed shield → boss used weak projectile → got blocked repeatedly.
+Player kept guarding → boss used weak jabs → got blocked repeatedly.
 ```
 
 ### Adapt the Boss Between Rounds
@@ -434,16 +418,16 @@ Example player profile:
 ```json
 {
   "player_profile": {
-    "style": "patient_charger",
-    "avg_charge_time": 3.4,
-    "block_rate": 0.18,
-    "slash_rate": 0.22,
-    "blast_rate": 0.60
+    "style": "heavy_puncher",
+    "avg_charge_time": 2.4,
+    "guard_rate": 0.18,
+    "combo_punch_rate": 0.22,
+    "heavy_punch_rate": 0.60
   },
   "arize_eval_summary": {
     "boss_counter_success": 0.31,
-    "worst_failure": "boss allowed full-charge blasts too often",
-    "recommended_strategy": "rush during charge and bait shield cooldown"
+    "worst_failure": "boss allowed heavy punches to land too often",
+    "recommended_strategy": "pressure long windups and bait guard timing"
   }
 }
 ```
@@ -451,8 +435,8 @@ Example player profile:
 EnemyAgent prompt for the next round:
 
 ```text
-The player is a patient charger. Previous boss strategy failed because it allowed full-charge blasts.
-In the next round, prioritize rush attacks when charge_time > 1.5s, dodge when arm aim is stable, and punish shield cooldown.
+The player is a heavy puncher. Previous boss strategy failed because it allowed long windups.
+In the next round, prioritize pressure when charge_time > 1.5s, dodge predictable punch strings, and punish guard habits with heavy counters.
 ```
 
 ### Strategy Weights
@@ -461,43 +445,47 @@ Initial boss strategy:
 
 ```json
 {
-  "rush": 0.25,
+  "pressure": 0.25,
   "dodge": 0.25,
-  "projectile": 0.25,
-  "block": 0.25
+  "jab": 0.25,
+  "guard": 0.25,
+  "heavy_counter": 0.00
 }
 ```
 
-If the player charges too often:
+If the player winds up heavy punches too often:
 
 ```json
 {
-  "rush": 0.65,
+  "pressure": 0.65,
   "dodge": 0.20,
-  "projectile": 0.05,
-  "block": 0.10
+  "jab": 0.05,
+  "guard": 0.10,
+  "heavy_counter": 0.00
 }
 ```
 
-If the player blocks too often:
+If the player guards too often:
 
 ```json
 {
-  "rush": 0.20,
+  "pressure": 0.20,
   "dodge": 0.15,
-  "projectile": 0.10,
-  "grab_or_unblockable": 0.55
+  "jab": 0.10,
+  "guard": 0.00,
+  "heavy_counter": 0.55
 }
 ```
 
-If the player slashes too often:
+If the player throws left-right punch strings too often:
 
 ```json
 {
-  "rush": 0.15,
+  "pressure": 0.15,
   "dodge": 0.45,
-  "projectile": 0.30,
-  "block": 0.10
+  "jab": 0.30,
+  "guard": 0.10,
+  "heavy_counter": 0.00
 }
 ```
 
@@ -506,12 +494,12 @@ If the player slashes too often:
 Show this beside the game:
 
 ```text
-Player Style: Patient Charger
+Player Style: Heavy Puncher
 Boss Counter Success: 31% → 68%
-Most Common Player Move: Full-charge blast
-Boss Adaptation: Rush during charge
-Last Failed Decision: Projectile into shield
-Next Strategy: Bait shield, then dash strike
+Most Common Player Move: Heavy punch
+Boss Adaptation: Pressure during windup
+Last Failed Decision: Jab into guard
+Next Strategy: Bait guard, then heavy counter
 ```
 
 ### Why This Helps the Arize Sponsor Track
@@ -549,12 +537,12 @@ Use Redis for fast game memory and sponsor-track visibility.
 ```json
 {
   "player_id": "demo_player",
-  "style": "patient_charger",
-  "avg_charge_time": 3.1,
-  "favorite_move": "charged_blast",
-  "blocks_used": 4,
-  "slashes_used": 7,
-  "ultimates_used": 1,
+  "style": "heavy_puncher",
+  "avg_charge_time": 2.4,
+  "favorite_move": "heavy_punch",
+  "guards_used": 4,
+  "combo_punches_used": 7,
+  "very_heavy_punches_used": 1,
   "boss_counter_success_before": 0.31,
   "boss_counter_success_after": 0.68
 }
@@ -576,14 +564,14 @@ At match end, `RecapAgent` generates a prompt from telemetry:
 
 ```text
 Create a 7-second anime-style battle recap in a neon arena. 
-A fighter charges glowing energy in their fist, aura rising, then releases a massive beam called Solar Core Cannon at a shadow bear boss. 
+A fighter reads the boss guard, winds up, and lands a clean heavy punch that turns the round. 
 Fast camera movement, impact flash, cinematic lighting, dramatic ending.
 ```
 
 ### Good Pika Outputs
 
 - Post-fight recap video.
-- Ultimate move trailer.
+- Heavy-punch highlight.
 - Boss intro clip.
 - Devpost demo trailer asset.
 
@@ -624,7 +612,7 @@ Deepgram should only be added after the core loop works.
 
 Possible uses:
 
-- Voice command: “ultimate.”
+- Voice command: “guard.”
 - Voice command: “start duel.”
 - Player taunts affect the boss.
 - AI announcer voice for commentary.
@@ -656,9 +644,9 @@ The MVP is complete when this works:
 
 1. Webcam tracks wrist position.
 2. MYO fist hold fills charge bar.
-3. Releasing fist fires beam from wrist direction.
-4. Fingers spread creates shield.
-5. Wave left/right creates slash.
+3. Releasing fist throws a heavy punch.
+4. Open palm movement positions the fighter.
+5. Keyboard fallback supports left/right punch, guard, and heavy punch tiers.
 6. Boss takes damage and changes phase.
 7. EnemyAgent chooses boss responses.
 8. NarratorAgent names attacks and comments on the fight.
@@ -678,10 +666,10 @@ Build the game with keyboard/mouse first, then map MYO and CV into the same inpu
 |---|---|
 | Fist hold | Hold `F` |
 | Fist release | Release `F` |
-| Fingers spread | `S` |
-| Wave left | `A` |
-| Wave right | `D` |
-| Double tap | Space |
+| Guard | `S` |
+| Left punch | `A` |
+| Right punch | `D` |
+| Very-heavy punch | Space |
 | CV aim | Mouse position |
 | CV movement | Arrow keys |
 
@@ -705,7 +693,7 @@ Success condition:
 
 ```text
 MYO fist prints CHARGE_START
-MYO rest prints BLAST_RELEASE
+MYO rest prints HEAVY_PUNCH_RELEASE
 Webcam shows wrist position
 Keyboard fallback controls same actions
 ```
@@ -721,27 +709,27 @@ Build:
 - Boss.
 - Health bars.
 - Charge bar.
-- Blast attack.
-- Shield.
-- Slash.
+- Heavy punch.
+- Guard.
+- Left/right punches.
 
 Use keyboard fallback first.
 
 ### Hour 5–8: CV Aiming
 
-Goal: blast comes from your real hand.
+Goal: punch origin comes from your real hand.
 
 Build:
 
 - Wrist reticle.
-- Beam origin from wrist.
+- Punch origin from wrist.
 - Body-center movement.
 - Aim smoothing.
 
 MVP formula:
 
 ```text
-beam_origin = wrist_position
+punch_origin = wrist_position
 target = wrist_position + normalized(elbow_to_wrist_vector) * range
 ```
 
@@ -778,9 +766,9 @@ Build:
 Rules:
 
 ```text
-If player charges too often → boss rushes.
-If player blocks often → boss uses unblockable/grab.
-If player slashes often → boss dodges or backs away.
+If player winds up heavy punches too often → boss pressures.
+If player guards often → boss uses heavy counter.
+If player throws left-right punch strings often → boss dodges or backs away.
 ```
 
 ### Hour 15–18: Arize Fight Lab
@@ -799,8 +787,8 @@ Minimum Arize demo:
 
 ```text
 Round 1: boss counter success = 31%
-Arize identifies player as patient charger
-Boss updates strategy to rush during charge
+Arize identifies player as heavy puncher
+Boss updates strategy to pressure during windup
 Round 2: boss counter success = 68%
 ```
 

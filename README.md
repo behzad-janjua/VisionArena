@@ -5,8 +5,8 @@ Unity-first hackathon scaffold for a 2.5D anime boss fight controlled by gesture
 ## Current Architecture
 
 - `Assets/Scripts/Input`: keyboard fallback plus backend injection points for MYO/PyoMyo and MediaPipe pose events.
-- `Assets/Scripts/Combat`: charge levels, boss/player health, shields, slashes, ultimates, and strategy weights.
-- `Assets/Scripts/Effects`: runtime aura, shield, beam, slash trail, and screen shake effects.
+- `Assets/Scripts/Combat`: punch tiers, boss/player health, guard timing, and strategy weights.
+- `Assets/Scripts/Effects`: runtime charge aura, guard flash, punch impact trails, and screen shake effects.
 - `Assets/Scripts/Telemetry`: match event recorder and mock agent client.
 - `Assets/Scripts/UI`: runtime HUD, charge bar, health bars, narration, reticle, and fight-lab panel.
 - `backend/`: FastAPI WebSocket service, mock-safe agent workflow, Redis wrapper, Arize-style evaluator, Pika prompt generator.
@@ -26,10 +26,10 @@ Fallback controls:
 | Mouse | Aim |
 | Arrow keys / horizontal axis | Move |
 | Hold `F` | Charge |
-| Release `F` | Fire blast |
-| `S` | Shield |
-| `A` / `D` | Slash left / right |
-| Space | Ultimate |
+| Release `F` | Heavy punch |
+| `S` | Guard |
+| `A` / `D` | Left / right punch |
+| Space | Very-heavy punch |
 
 ## Backend Demo
 

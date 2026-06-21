@@ -18,7 +18,7 @@ from backend.redis_store import RedisStore
 
 # Ability cooldowns (seconds) stored in Redis with a TTL so the HUD can show a
 # live countdown that the boss also reads when deciding how to punish.
-_COOLDOWNS = {"ultimate": 8.0, "charged_blast": 3.0, "shield": 2.0}
+_COOLDOWNS = {"very_heavy_punch": 8.0, "heavy_punch": 3.0, "guard": 2.0}
 _TRACKED_ABILITIES = tuple(_COOLDOWNS.keys())
 
 
@@ -49,8 +49,10 @@ class GameMasterAgent:
         existing_events = self.store.get_match_events(player_id)
         existing_evals = self.store.get_json_list(f"player:{player_id}:evals")
         profile_before = build_player_profile(existing_events, existing_evals)
+        learning_enabled = bool(existing_evals)
+        learning_mode = "adapted" if learning_enabled else "baseline"
 
-        boss_action, strategy = self.enemy.choose_response(event, profile_before)
+        boss_action, strategy = self.enemy.choose_response(event, profile_before, learning_enabled=learning_enabled)
         move_name, narration = self.narrator.narrate(event)
         evaluated_event = CombatTelemetry(**{**event.__dict__, "boss_action": boss_action})
         evaluation = evaluate_boss_turn(evaluated_event)
@@ -85,6 +87,16 @@ class GameMasterAgent:
         if cooldown:
             self.store.set_cooldown(player_id, event.player_action, cooldown)
         active_cooldowns = self.store.active_cooldowns(player_id, list(_TRACKED_ABILITIES))
+        tactical_plan = self.enemy.build_tactical_plan(
+            evaluated_event,
+            profile_after,
+            boss_action,
+            strategy,
+            strategy_weights,
+            memory_recall=memory_recall,
+            active_cooldowns=active_cooldowns,
+            learning_enabled=learning_enabled,
+        )
 
         # --- Redis match telemetry stream, move-name memory, boss phase, narration ---
         boss_phase = _boss_phase(event.boss_health_after)
@@ -144,6 +156,8 @@ class GameMasterAgent:
                 "latest_move_name": move_name,
                 "boss_action": boss_action,
                 "boss_adaptation": adaptation,
+                "tactical_plan": tactical_plan,
+                "learning_mode": learning_mode,
                 "strategy_weights": strategy_weights,
                 "arize_eval_summary": evaluation.to_dict(),
                 "boss_phase": boss_phase,
@@ -162,6 +176,8 @@ class GameMasterAgent:
             survival_score=evaluation.survival_score,
             strategy_weights=strategy_weights,
             player_profile=profile_after,
+            tactical_plan=tactical_plan,
+            learning_mode=learning_mode,
             trace=trace,
             recap_job=recap_job,
         )

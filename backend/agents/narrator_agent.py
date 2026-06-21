@@ -21,12 +21,14 @@ class NarratorAgent:
 
     @staticmethod
     def _fallback(event: CombatTelemetry) -> tuple[str, str]:
-        if event.player_action == "ultimate":
-            return "Solar Core Cannon", "The arena freezes as the ultimate beam tears across the fight."
-        if event.player_action == "charged_blast":
-            return "Neon Pulse Breaker", f"A charged blast lands for {event.damage_dealt_by_player} damage."
-        if event.player_action.startswith("slash"):
-            return "Crosslight Slash", "A bright slash cuts through the boss guard."
-        if event.player_action == "shield":
-            return "Prism Guard", "A translucent shield blooms around the fighter."
-        return "Ki Pulse", "The boss watches for the next opening."
+        if event.player_action == "very_heavy_punch":
+            return "Very Heavy Punch", f"A full-power punch lands for {event.damage_dealt_by_player} damage."
+        if event.player_action == "heavy_punch":
+            return "Heavy Punch", f"A heavy punch lands for {event.damage_dealt_by_player} damage."
+        if event.player_action == "left_punch":
+            return "Left Punch", "A left punch tests the boss guard."
+        if event.player_action == "right_punch":
+            return "Right Punch", "A right punch snaps through the opening."
+        if event.player_action in {"guard", "block"}:
+            return "Guard", "The fighter raises guard and waits for the counter."
+        return "Basic Punch", "The boss watches the fighter's punch timing."

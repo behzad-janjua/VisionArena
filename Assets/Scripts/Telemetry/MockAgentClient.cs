@@ -33,19 +33,17 @@ namespace KiForge.Telemetry
             }
 
             var style = telemetry.InferPlayerStyle();
-            var moveName = evt.playerAction == PlayerActionType.Ultimate ? "Solar Core Cannon" : "Neon Pulse Breaker";
-            if (evt.playerAction == PlayerActionType.SlashLeft || evt.playerAction == PlayerActionType.SlashRight)
-            {
-                moveName = "Crosslight Slash";
-            }
+            var moveName = evt.playerAction == PlayerActionType.VeryHeavyPunch ? "Very Heavy Punch" :
+                evt.playerAction == PlayerActionType.HeavyPunch ? "Heavy Punch" :
+                evt.playerAction == PlayerActionType.Guard ? "Guard" : "Quick Punch";
 
             eventBus.PublishAgentResponse(new AgentResponseEvent
             {
                 moveName = moveName,
                 narration = $"{moveName} lands for {evt.damageDealtByPlayer} damage. The boss studies the pattern.",
-                bossAction = style == "patient_charger" ? "rush" : style == "shield_turtle" ? "unblockable" : "dodge",
+                bossAction = style == "heavy_puncher" ? "pressure" : style == "guard_turtle" ? "heavy_counter" : "dodge",
                 nextStrategy = style,
-                recapPrompt = "Create a 7-second anime battle recap in a neon arena with a charged beam finish.",
+                recapPrompt = "Create a 7-second boxing-game recap in a neon arena with a clean heavy-punch finish.",
                 counterSuccess = style == "balanced" ? 0.42f : 0.68f,
                 survivalScore = evt.bossHealthAfter > 0 ? 0.6f : 0.2f
             });

@@ -83,7 +83,7 @@ namespace KiForge.Input
             {
                 charging = false;
                 var holdSeconds = Time.time - chargeStartedAt;
-                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.BlastRelease, origin, latestAim, Mathf.Clamp01(holdSeconds / 3.5f), holdSeconds));
+                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.HeavyPunchRelease, origin, latestAim, Mathf.Clamp01(holdSeconds / 3.5f), holdSeconds));
             }
         }
 
@@ -93,27 +93,27 @@ namespace KiForge.Input
 
             if (UnityEngine.Input.GetKeyDown(KeyCode.S))
             {
-                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.ShieldStart, origin, latestAim));
+                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.GuardStart, origin, latestAim));
             }
 
             if (UnityEngine.Input.GetKeyUp(KeyCode.S))
             {
-                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.ShieldEnd, origin, latestAim));
+                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.GuardEnd, origin, latestAim));
             }
 
             if (UnityEngine.Input.GetKeyDown(KeyCode.A))
             {
-                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.SlashLeft, origin, Vector2.left));
+                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.LeftPunch, origin, Vector2.left));
             }
 
             if (UnityEngine.Input.GetKeyDown(KeyCode.D))
             {
-                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.SlashRight, origin, Vector2.right));
+                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.RightPunch, origin, Vector2.right));
             }
 
             if (UnityEngine.Input.GetKeyDown(KeyCode.Space))
             {
-                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.Ultimate, origin, latestAim, 1f, 4f));
+                eventBus.PublishGesture(GestureEvent.Create(GestureEventType.VeryHeavyPunch, origin, latestAim, 1f, 4f));
             }
         }
 

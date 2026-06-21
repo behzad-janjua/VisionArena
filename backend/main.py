@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, Field
 
 from backend.agents import GameMasterAgent
 from backend.agents.game_master_agent import _TRACKED_ABILITIES
+from backend.agentverse_adapter import respond_to_text as respond_to_agent_text
 from backend.models import CombatTelemetry, EventType, NormalizedEvent
 from backend.player_memory import style_vector
 from backend.vision_bridge import vision_bridge_stream
@@ -42,6 +44,40 @@ class _ConnectionManager:
 
 _manager = _ConnectionManager()
 _game_master = GameMasterAgent()
+
+
+class CombatTelemetryRequest(BaseModel):
+    round: int = Field(..., description="Current combat round.")
+    player_action: str = Field(..., description="Player action, e.g. left_punch, right_punch, heavy_punch, very_heavy_punch, guard.")
+    charge_time: float = Field(..., description="Seconds the player charged before releasing.")
+    accuracy: float = Field(..., ge=0.0, le=1.0, description="Player aim/pose accuracy from 0 to 1.")
+    damage_dealt_by_player: int
+    damage_dealt_by_boss: int
+    boss_action: str = Field("unknown", description="Previous or proposed boss action, overwritten by the agent.")
+    boss_health_after: int
+    player_health_after: int
+    outcome: str = Field(..., description="Outcome label, e.g. boss_staggered, boss_ko, player_blocked.")
+
+
+class AgentChatRequest(BaseModel):
+    message: str = Field(..., description="Natural language request or CombatTelemetry JSON.")
+    player_id: str = Field("agentverse_player", description="Stable player/session id for memory.")
+
+
+class AgentChatResponse(BaseModel):
+    reply: str
+    player_id: str
+
+
+def _handle_agent_payload(payload: dict[str, Any], player_id: str) -> dict[str, Any]:
+    telemetry = CombatTelemetry(**payload)
+    return _game_master.handle_combat_event(telemetry, player_id=player_id).to_event().payload
+
+
+def _model_dict(model: BaseModel) -> dict[str, Any]:
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return model.dict()
 
 
 async def _vision_task() -> None:
@@ -92,6 +128,7 @@ def demo_fight_lab(player_id: str = "demo_player") -> dict[str, Any]:
         "boss_counter_success_after": profile.get("boss_counter_success_after", 0.0),
         "most_common_player_move": profile.get("favorite_move", "none"),
         "boss_adaptation": profile.get("boss_adaptation", latest_response.get("next_strategy", "")),
+        "tactical_plan": profile.get("tactical_plan", latest_response.get("tactical_plan", {})),
         "strategy_weights": profile.get("strategy_weights", latest_response.get("strategy_weights", {})),
         "last_trace": state["recent_traces"][-1] if state["recent_traces"] else {},
         "recent_traces": state["recent_traces"],
@@ -154,22 +191,43 @@ def demo_recap() -> dict[str, Any]:
 
 
 @app.post("/demo/combat")
-def demo_combat(payload: dict[str, Any], player_id: str = "demo_player") -> dict[str, Any]:
-    telemetry = CombatTelemetry(**payload)
-    return _game_master.handle_combat_event(telemetry, player_id=player_id).to_event().payload
+def demo_combat(payload: CombatTelemetryRequest, player_id: str = "demo_player") -> dict[str, Any]:
+    return _handle_agent_payload(_model_dict(payload), player_id)
 
 
 @app.post("/agent/combat")
-def agent_combat(payload: dict[str, Any], player_id: str = "agentverse_player") -> dict[str, Any]:
+def agent_combat(payload: CombatTelemetryRequest, player_id: str = "agentverse_player") -> dict[str, Any]:
     """Stable Agentverse/API integration route for combat decisions."""
-    telemetry = CombatTelemetry(**payload)
-    return _game_master.handle_combat_event(telemetry, player_id=player_id).to_event().payload
+    return _handle_agent_payload(_model_dict(payload), player_id)
+
+
+@app.post("/agent/chat", response_model=AgentChatResponse)
+def agent_chat(payload: AgentChatRequest) -> AgentChatResponse:
+    """Agentverse FastAPI chat route: natural language in, boss-agent reply out."""
+    reply = respond_to_agent_text(payload.message, _handle_agent_payload, payload.player_id)
+    return AgentChatResponse(reply=reply, player_id=payload.player_id)
 
 
 @app.get("/agent/state")
 def agent_state(player_id: str = "agentverse_player") -> dict[str, Any]:
     """Small read endpoint for hosted agent health checks and judge demos."""
     return _game_master.demo_state(player_id)
+
+
+@app.get("/agent/manifest")
+def agent_manifest() -> dict[str, Any]:
+    """Small capability card for Agentverse external integration setup."""
+    return {
+        "name": "battle_agent",
+        "title": "Battle Agent",
+        "description": "Adaptive anime boss-fight agent that counters player gestures, narrates moves, and records fight-lab memory.",
+        "framework": "FastAPI",
+        "protocols": ["Agent Chat Protocol", "structured combat telemetry"],
+        "chat_endpoint": "/agent/chat",
+        "combat_endpoint": "/agent/combat",
+        "state_endpoint": "/agent/state",
+        "example_message": "start duel",
+    }
 
 
 @app.websocket("/ws/unity")

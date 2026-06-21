@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 import os
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
@@ -12,25 +11,26 @@ from .models import EventType, NormalizedEvent
 
 log = logging.getLogger(__name__)
 
-# MediaPipe Pose landmark indices
-_RIGHT_WRIST = 16
-_RIGHT_ELBOW = 14
-_LEFT_HIP = 23
-_RIGHT_HIP = 24
+# GestureRecognizer model (bundles hand landmarker + canonical gesture classifier).
+_MODEL_PATH = os.path.join(os.path.dirname(__file__), "gesture_recognizer.task")
 
-_MODEL_PATH = os.path.join(os.path.dirname(__file__), "pose_landmarker_lite.task")
-
-_MOCK_SEQUENCE = [
-    {"wrist": {"x": 0.65, "y": 0.38}, "bodyCenter": {"x": 0.52, "y": 0.60},
-     "aim": {"x": 0.92, "y": -0.10}, "confidence": 1.0},
-    {"wrist": {"x": 0.67, "y": 0.36}, "bodyCenter": {"x": 0.51, "y": 0.61},
-     "aim": {"x": 0.94, "y": -0.12}, "confidence": 1.0},
-    {"wrist": {"x": 0.63, "y": 0.40}, "bodyCenter": {"x": 0.50, "y": 0.60},
-     "aim": {"x": 0.90, "y": -0.08}, "confidence": 1.0},
-]
+# MediaPipe canonical gesture labels -> the game gestures we care about for this test.
+_GESTURE_MAP = {
+    "Closed_Fist": "fist",       # -> punch
+    "Open_Palm": "open_palm",    # -> walk forward
+}
 
 _TARGET_FPS = int(os.getenv("CV_TARGET_FPS", "30") or 30)
 _CAMERA_INDEX = int(os.getenv("CV_CAMERA_INDEX", "0") or 0)
+
+# Mock loop (no camera): a few open-palm frames (walk) then a fist (punch) then rest.
+_MOCK_SEQUENCE = [
+    {"gesture": "open_palm", "hand": {"x": 0.55, "y": 0.45}, "confidence": 0.95},
+    {"gesture": "open_palm", "hand": {"x": 0.55, "y": 0.45}, "confidence": 0.95},
+    {"gesture": "open_palm", "hand": {"x": 0.55, "y": 0.45}, "confidence": 0.95},
+    {"gesture": "fist", "hand": {"x": 0.52, "y": 0.48}, "confidence": 0.95},
+    {"gesture": "none", "hand": {"x": 0.50, "y": 0.50}, "confidence": 0.50},
+]
 
 
 def _make_event(payload: dict) -> NormalizedEvent:
@@ -39,52 +39,43 @@ def _make_event(payload: dict) -> NormalizedEvent:
 
 def _try_import_deps():
     try:
-        import cv2
-        import mediapipe as mp
-        from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions, RunningMode
+        import cv2  # noqa: F401
         from mediapipe.tasks.python.core.base_options import BaseOptions
-        return cv2, mp, PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions
+        from mediapipe.tasks.python.vision import (
+            GestureRecognizer,
+            GestureRecognizerOptions,
+            RunningMode,
+        )
+
+        return cv2, GestureRecognizer, GestureRecognizerOptions, RunningMode, BaseOptions
     except ImportError as e:
         log.warning("[CV] import failed: %s", e)
-        return None, None, None, None, None, None
+        return None, None, None, None, None
 
 
 def _extract_payload(result) -> dict | None:
-    if not result.pose_landmarks:
+    if not result.gestures:
         return None
 
-    lm = result.pose_landmarks[0]   # first (and only) detected person
-    if len(lm) <= _RIGHT_HIP:
-        return None
+    top = result.gestures[0][0]  # first hand, highest-score category
+    gesture = _GESTURE_MAP.get(top.category_name, "none")
 
-    rw = lm[_RIGHT_WRIST]
-    re = lm[_RIGHT_ELBOW]
-    lh = lm[_LEFT_HIP]
-    rh = lm[_RIGHT_HIP]
-
-    # Use presence score as confidence proxy (tasks API uses presence/visibility)
-    confidence = (rw.presence + re.presence) / 2.0 if hasattr(rw, "presence") else 0.8
-    if confidence < 0.40:
-        return None
-
-    # elbow→wrist direction; y-flip so up is positive in game coords
-    dx = rw.x - re.x
-    dy = -(rw.y - re.y)
-    length = math.sqrt(dx * dx + dy * dy) or 1.0
-
-    cx = (lh.x + rh.x) / 2.0
-    cy = 1.0 - (lh.y + rh.y) / 2.0
+    # Approximate hand center from the wrist landmark (index 0) when available.
+    hand_x, hand_y = 0.5, 0.5
+    if result.hand_landmarks:
+        wrist = result.hand_landmarks[0][0]
+        hand_x, hand_y = wrist.x, 1.0 - wrist.y
 
     return {
-        "wrist":      {"x": rw.x,       "y": 1.0 - rw.y},
-        "bodyCenter": {"x": cx,          "y": cy},
-        "aim":        {"x": dx / length, "y": dy / length},
-        "confidence": float(min(confidence, 0.99)),  # keep < 1.0 to distinguish from keyboard fallback
+        "gesture": gesture,
+        "hand": {"x": float(hand_x), "y": float(hand_y)},
+        "confidence": float(top.score),
     }
 
 
-def _blocking_init(PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions):
+def _blocking_init(GestureRecognizer, GestureRecognizerOptions, RunningMode, BaseOptions):
     import cv2
+
     cap = cv2.VideoCapture(_CAMERA_INDEX)
     if not cap.isOpened():
         raise RuntimeError(f"Camera index {_CAMERA_INDEX} not available")
@@ -101,21 +92,17 @@ def _blocking_init(PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptio
             "in System Settings > Privacy & Security > Camera"
         )
 
-    options = PoseLandmarkerOptions(
+    options = GestureRecognizerOptions(
         base_options=BaseOptions(model_asset_path=_MODEL_PATH),
         running_mode=RunningMode.VIDEO,
-        num_poses=1,
-        min_pose_detection_confidence=0.5,
-        min_pose_presence_confidence=0.5,
-        min_tracking_confidence=0.5,
+        num_hands=1,
     )
-    landmarker = PoseLandmarker.create_from_options(options)
-    return cap, landmarker
+    recognizer = GestureRecognizer.create_from_options(options)
+    return cap, recognizer
 
 
-def _blocking_capture(cap, landmarker) -> dict | None:
+def _blocking_capture(cap, recognizer) -> dict | None:
     import cv2
-    from mediapipe.framework.formats import image as mp_image
     from mediapipe import Image, ImageFormat
 
     ret, frame = cap.read()
@@ -125,26 +112,27 @@ def _blocking_capture(cap, landmarker) -> dict | None:
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_img = Image(image_format=ImageFormat.SRGB, data=rgb)
     timestamp_ms = int(time() * 1000)
-    result = landmarker.detect_for_video(mp_img, timestamp_ms)
+    result = recognizer.recognize_for_video(mp_img, timestamp_ms)
     return _extract_payload(result)
 
 
 async def vision_bridge_stream() -> AsyncIterator[NormalizedEvent]:
     """
-    Yields POSE_UPDATE events from the webcam via MediaPipe Pose Landmarker.
-    Falls back to looping mock data when the camera or model is unavailable.
+    Yields POSE_UPDATE events carrying a recognized hand gesture.
+
+    Closed fist -> "fist" (punch), open palm -> "open_palm" (walk forward).
+    Falls back to a looping mock gesture stream when the camera or model is missing.
     """
-    imports = _try_import_deps()
-    cv2, mp, PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions = imports
+    cv2, GestureRecognizer, GestureRecognizerOptions, RunningMode, BaseOptions = _try_import_deps()
 
     if cv2 is None:
-        log.warning("[CV] mediapipe/opencv not available — using mock pose stream")
+        log.warning("[CV] mediapipe/opencv not available — using mock gesture stream")
         async for evt in _mock_stream():
             yield evt
         return
 
     if not os.path.exists(_MODEL_PATH):
-        log.warning("[CV] Model file not found at %s — using mock pose stream", _MODEL_PATH)
+        log.warning("[CV] Model file not found at %s — using mock gesture stream", _MODEL_PATH)
         async for evt in _mock_stream():
             yield evt
         return
@@ -152,20 +140,20 @@ async def vision_bridge_stream() -> AsyncIterator[NormalizedEvent]:
     executor = ThreadPoolExecutor(max_workers=1)
     loop = asyncio.get_event_loop()
     try:
-        cap, landmarker = await loop.run_in_executor(
-            executor, _blocking_init, PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions
+        cap, recognizer = await loop.run_in_executor(
+            executor, _blocking_init, GestureRecognizer, GestureRecognizerOptions, RunningMode, BaseOptions
         )
     except Exception as exc:
-        log.warning("[CV] Camera unavailable (%s) — using mock pose stream", exc)
+        log.warning("[CV] Camera unavailable (%s) — using mock gesture stream", exc)
         executor.shutdown(wait=False)
         async for evt in _mock_stream():
             yield evt
         return
 
-    log.info("[CV] Webcam opened — MediaPipe Pose Landmarker running at ~%d fps", _TARGET_FPS)
+    log.info("[CV] Webcam opened — MediaPipe GestureRecognizer running (fist=punch, open palm=walk)")
     try:
         while True:
-            payload = await loop.run_in_executor(executor, _blocking_capture, cap, landmarker)
+            payload = await loop.run_in_executor(executor, _blocking_capture, cap, recognizer)
             if payload:
                 yield _make_event(payload)
     finally:
@@ -177,6 +165,10 @@ async def _mock_stream() -> AsyncIterator[NormalizedEvent]:
     frame_delay = 1.0 / _TARGET_FPS
     i = 0
     while True:
-        yield _make_event(_MOCK_SEQUENCE[i % len(_MOCK_SEQUENCE)])
+        # Hold each mock gesture for ~0.5s so the punch edge-trigger is visible.
+        # Flag every frame as synthetic so the Unity client won't let canned gestures
+        # seize control from the keyboard when no real camera is attached.
+        payload = {**_MOCK_SEQUENCE[(i // 15) % len(_MOCK_SEQUENCE)], "mock": True}
+        yield _make_event(payload)
         i += 1
         await asyncio.sleep(frame_delay)

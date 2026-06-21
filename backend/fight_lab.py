@@ -20,22 +20,22 @@ class FightLabEval:
 
 
 def recommend_strategy(event: CombatTelemetry) -> str:
-    if event.player_action == "charged_blast" and event.charge_time >= 1.5:
-        return "patient_charger"
-    if event.player_action == "shield":
-        return "shield_turtle"
-    if event.player_action in {"slash_left", "slash_right"}:
-        return "slash_spammer"
+    if event.player_action in {"heavy_punch", "very_heavy_punch"} and event.charge_time >= 1.5:
+        return "heavy_puncher"
+    if event.player_action in {"guard", "block"}:
+        return "guard_turtle"
+    if event.player_action in {"left_punch", "right_punch", "punch_combo"}:
+        return "combo_puncher"
     return "balanced"
 
 
 def recommended_counter(strategy: str) -> str:
     return {
-        "patient_charger": "rush",
-        "shield_turtle": "unblockable",
-        "slash_spammer": "dodge",
-        "balanced": "projectile",
-    }.get(strategy, "projectile")
+        "heavy_puncher": "pressure",
+        "guard_turtle": "heavy_counter",
+        "combo_puncher": "dodge",
+        "balanced": "jab",
+    }.get(strategy, "jab")
 
 
 def evaluate_boss_turn(event: CombatTelemetry) -> FightLabEval:
@@ -44,7 +44,7 @@ def evaluate_boss_turn(event: CombatTelemetry) -> FightLabEval:
     damage_efficiency = 1.0 if event.damage_dealt_by_boss > 0 else 0.0
     counter_success = 1.0 if event.boss_action == counter else 0.0
     survival_score = 1.0 if event.damage_dealt_by_player < 25 else 0.35 if event.boss_health_after > 0 else 0.0
-    variety_score = 0.7 if event.boss_action in {"rush", "dodge", "projectile", "unblockable", "block"} else 0.3
+    variety_score = 0.7 if event.boss_action in {"pressure", "jab", "dodge", "heavy_counter", "block", "guard"} else 0.3
     health_gap = abs(event.boss_health_after - event.player_health_after)
     fun_score = 1.0 if health_gap < 35 else 0.4
     commentary_accuracy = 1.0 if event.player_action and event.outcome else 0.0

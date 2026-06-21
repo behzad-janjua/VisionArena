@@ -9,12 +9,12 @@ from typing import Any
 class EventType(str, Enum):
     CHARGE_START = "CHARGE_START"
     CHARGE_UPDATE = "CHARGE_UPDATE"
-    BLAST_RELEASE = "BLAST_RELEASE"
-    SHIELD_START = "SHIELD_START"
-    SHIELD_END = "SHIELD_END"
-    SLASH_LEFT = "SLASH_LEFT"
-    SLASH_RIGHT = "SLASH_RIGHT"
-    ULTIMATE = "ULTIMATE"
+    HEAVY_PUNCH_RELEASE = "HEAVY_PUNCH_RELEASE"
+    GUARD_START = "GUARD_START"
+    GUARD_END = "GUARD_END"
+    LEFT_PUNCH = "LEFT_PUNCH"
+    RIGHT_PUNCH = "RIGHT_PUNCH"
+    VERY_HEAVY_PUNCH = "VERY_HEAVY_PUNCH"
     POSE_UPDATE = "POSE_UPDATE"
     COMBAT_TELEMETRY = "COMBAT_TELEMETRY"
     AGENT_RESPONSE = "AGENT_RESPONSE"
@@ -96,6 +96,8 @@ class AgentResponse:
     survival_score: float = 0.0
     strategy_weights: dict[str, float] = field(default_factory=dict)
     player_profile: dict[str, Any] = field(default_factory=dict)
+    tactical_plan: dict[str, Any] = field(default_factory=dict)
+    learning_mode: str = "adapted"
     trace: dict[str, Any] = field(default_factory=dict)
     recap_job: dict[str, Any] = field(default_factory=dict)
 

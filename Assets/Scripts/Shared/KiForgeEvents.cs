@@ -7,12 +7,12 @@ namespace KiForge.Shared
     {
         public const string ChargeStart = "CHARGE_START";
         public const string ChargeUpdate = "CHARGE_UPDATE";
-        public const string BlastRelease = "BLAST_RELEASE";
-        public const string ShieldStart = "SHIELD_START";
-        public const string ShieldEnd = "SHIELD_END";
-        public const string SlashLeft = "SLASH_LEFT";
-        public const string SlashRight = "SLASH_RIGHT";
-        public const string Ultimate = "ULTIMATE";
+        public const string HeavyPunchRelease = "HEAVY_PUNCH_RELEASE";
+        public const string GuardStart = "GUARD_START";
+        public const string GuardEnd = "GUARD_END";
+        public const string LeftPunch = "LEFT_PUNCH";
+        public const string RightPunch = "RIGHT_PUNCH";
+        public const string VeryHeavyPunch = "VERY_HEAVY_PUNCH";
         public const string PoseUpdate = "POSE_UPDATE";
         public const string CombatTelemetry = "COMBAT_TELEMETRY";
         public const string AgentResponse = "AGENT_RESPONSE";
@@ -25,18 +25,18 @@ namespace KiForge.Shared
                     return ChargeStart;
                 case GestureEventType.ChargeUpdate:
                     return ChargeUpdate;
-                case GestureEventType.BlastRelease:
-                    return BlastRelease;
-                case GestureEventType.ShieldStart:
-                    return ShieldStart;
-                case GestureEventType.ShieldEnd:
-                    return ShieldEnd;
-                case GestureEventType.SlashLeft:
-                    return SlashLeft;
-                case GestureEventType.SlashRight:
-                    return SlashRight;
-                case GestureEventType.Ultimate:
-                    return Ultimate;
+                case GestureEventType.HeavyPunchRelease:
+                    return HeavyPunchRelease;
+                case GestureEventType.GuardStart:
+                    return GuardStart;
+                case GestureEventType.GuardEnd:
+                    return GuardEnd;
+                case GestureEventType.LeftPunch:
+                    return LeftPunch;
+                case GestureEventType.RightPunch:
+                    return RightPunch;
+                case GestureEventType.VeryHeavyPunch:
+                    return VeryHeavyPunch;
                 default:
                     return string.Empty;
             }
@@ -47,22 +47,22 @@ namespace KiForge.Shared
     {
         ChargeStart,
         ChargeUpdate,
-        BlastRelease,
-        ShieldStart,
-        ShieldEnd,
-        SlashLeft,
-        SlashRight,
-        Ultimate
+        HeavyPunchRelease,
+        GuardStart,
+        GuardEnd,
+        LeftPunch,
+        RightPunch,
+        VeryHeavyPunch
     }
 
     public enum PlayerActionType
     {
         None,
-        ChargedBlast,
-        Shield,
-        SlashLeft,
-        SlashRight,
-        Ultimate
+        HeavyPunch,
+        Guard,
+        LeftPunch,
+        RightPunch,
+        VeryHeavyPunch
     }
 
     [Serializable]
@@ -97,7 +97,9 @@ namespace KiForge.Shared
         public Vector2 wrist;
         public Vector2 bodyCenter;
         public Vector2 aim;
+        public string gesture;
         public float confidence;
+        public bool mock; // true for synthetic backend frames (no real camera)
         public double timestamp;
     }
 

@@ -6,18 +6,18 @@ namespace KiForge.Combat
     public sealed class PlayerCombatController : MonoBehaviour
     {
         [Tooltip("Seconds after a block ends during which the player stays immune to damage.")]
-        [SerializeField] private float shieldGraceSeconds = 0.2f;
+        [SerializeField] private float guardGraceSeconds = 0.2f;
 
         public int Health { get; private set; }
         public int MaxHealth { get; private set; }
         public bool IsDefeated => Health <= 0;
-        public bool Shielding { get; private set; }
+        public bool Guarding { get; private set; }
 
         // Set far in the past so the grace window is not active before the first block.
-        private float shieldReleaseTime = -999f;
+        private float guardReleaseTime = -999f;
 
-        // Immune while actively shielding, and for shieldGraceSeconds after the block ends.
-        public bool IsBlocking => Shielding || Time.time - shieldReleaseTime <= shieldGraceSeconds;
+        // Immune while actively guarding, and for guardGraceSeconds after the block ends.
+        public bool IsBlocking => Guarding || Time.time - guardReleaseTime <= guardGraceSeconds;
 
         public event Action<int> Damaged;
         public event Action Defeated;
@@ -33,15 +33,15 @@ public void Initialize(int maxHealth)
             Health = Mathf.Clamp(startingHealth, 0, MaxHealth);
         }
 
-        public void SetShielding(bool value)
+        public void SetGuarding(bool value)
         {
             // Start the grace window the moment a block ends.
-            if (Shielding && !value)
+            if (Guarding && !value)
             {
-                shieldReleaseTime = Time.time;
+                guardReleaseTime = Time.time;
             }
 
-            Shielding = value;
+            Guarding = value;
         }
 
 public int ApplyDamage(int damage)

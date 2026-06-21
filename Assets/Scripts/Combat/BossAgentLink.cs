@@ -11,7 +11,7 @@ namespace KiForge.Combat
 
     /// <summary>
     /// Snapshot of the fight handed to the boss "brain" each decision tick. Mirrors the
-    /// EnemyAgent input described in plan.md (player style, charge/accuracy, health gap).
+    /// EnemyAgent input described in plan.md (player style, punch timing, health gap).
     /// </summary>
     public struct BossDecisionContext
     {
@@ -65,7 +65,7 @@ namespace KiForge.Combat
             // PLACEHOLDER: a real EnemyAgent decision happens here. Replace the
             // weighted roll below with a call to the Fetch.ai agent over the
             // backend WebSocket and map its JSON response onto BossDecision.
-            //   request  = context (player_style, charge, accuracy, health gap)
+            //   request  = context (player_style, punch timing, accuracy, health gap)
             //   response = { move_name, boss_reaction, next_strategy }
             // Arize traces/evals (see ArizeCoachFeedback) feed the strategy update.
             // ---------------------------------------------------------------
@@ -80,24 +80,25 @@ namespace KiForge.Combat
                     kind = BossActionKind.Attack,
                     attack = AttackType.KickRight,
                     moveName = "Closing Step",
-                    reasoning = "Player out of reach; advancing to pressure.",
+                    reasoning = "Player out of reach; stepping in with punch pressure.",
                     nextStrategy = StrategyLabel(context.playerStyle)
                 };
             }
 
             var roll = Random.value;
             var dodge = weights.dodge;
-            var block = dodge + weights.block;
-            var unblockable = block + weights.unblockable;
-            // remaining probability mass (rush + projectile) -> melee pressure
+            var guard = dodge + weights.guard;
+            var heavyCounter = guard + weights.heavyCounter;
+            var jab = heavyCounter + weights.jab;
+            // remaining probability mass (pressure) -> close-range punch pressure.
 
             if (roll < dodge)
             {
                 return Decision(BossActionKind.Dodge, AttackType.PunchRight,
-                    "Phase Slip", "Backing off to bait a whiff.", context.playerStyle);
+                    "Slip Counter", "Backing off to bait a whiff.", context.playerStyle);
             }
 
-            if (roll < block)
+            if (roll < guard)
             {
                 return new BossDecision
                 {
@@ -109,18 +110,23 @@ namespace KiForge.Combat
                 };
             }
 
-            if (roll < unblockable)
+            if (roll < heavyCounter)
             {
-                // Punish turtling players with the heavy / ultimate.
-                var heavy = context.bossHealth01 < 0.4f ? AttackType.Ultimate : AttackType.VeryHeavyPunch;
+                var heavy = context.bossHealth01 < 0.4f ? AttackType.HeavyPunch : AttackType.VeryHeavyPunch;
                 return Decision(BossActionKind.Attack, heavy,
-                    "Crushing Blow", "Player guards too much; committing an unblockable.", context.playerStyle);
+                    "Heavy Counter", "Player guards too much; timing a heavy counter punch.", context.playerStyle);
             }
 
-            // Default: aggressive melee. Kicks reach further than punches.
+            if (roll < jab)
+            {
+                return Decision(BossActionKind.Attack, AttackType.PunchLeft,
+                    "Check Jab", "Testing the player's timing with a quick jab.", context.playerStyle);
+            }
+
+            // Default: aggressive close-range punches.
             var pressure = PickPressureAttack();
             return Decision(BossActionKind.Attack, pressure,
-                "Rush Pressure", "Closing in to deny the player room.", context.playerStyle);
+                "Punch Pressure", "Closing in to deny the player room.", context.playerStyle);
         }
 
         private BossDecision Decision(BossActionKind kind, AttackType attack, string move, string reason, string style)
@@ -138,19 +144,18 @@ namespace KiForge.Combat
         private static AttackType PickPressureAttack()
         {
             var r = Random.value;
-            if (r < 0.3f) return AttackType.PunchLeft;
-            if (r < 0.6f) return AttackType.PunchRight;
-            if (r < 0.8f) return AttackType.KickLeft;
-            return AttackType.KickRight;
+            if (r < 0.4f) return AttackType.PunchLeft;
+            if (r < 0.8f) return AttackType.PunchRight;
+            return AttackType.HeavyPunch;
         }
 
         private static string StrategyLabel(string style)
         {
             switch (style)
             {
-                case "patient_charger": return "Rush during charge windows";
-                case "shield_turtle":   return "Bait guard, then unblockable";
-                case "slash_spammer":   return "Dodge and counter the rush";
+                case "heavy_puncher": return "Pressure long punch windups";
+                case "guard_turtle":  return "Bait guard, then heavy counter";
+                case "combo_puncher": return "Dodge punch strings and jab back";
                 default:                return "Probe and adapt";
             }
         }
