@@ -1,131 +1,110 @@
-"""Fight-lab trace builder + optional Arize Phoenix / OpenTelemetry export.
+"""Arize fight-lab tracing — instruments ASI:One LLM calls and combat events.
 
-When PHOENIX_COLLECTOR_ENDPOINT is set (or ARIZE_API_KEY + ARIZE_SPACE_ID), each
-combat turn is exported as an OpenTelemetry trace so you can inspect the
-ReadPlayerMemory → EnemyAgentDecision → Narrator → FightLabEvaluate →
-UpdateStrategyMemory pipeline in the Phoenix UI.
+Call setup_tracing() once at startup. When ARIZE_API_KEY + ARIZE_SPACE_ID are
+present it registers a persistent OTLP provider pointed at Arize cloud and
+auto-instruments every OpenAI (ASI:One) call so LLM spans appear in the UI.
 
-Without those env vars the function works exactly as before (local-only traces
-returned as FightLabTrace dicts and stored in Redis).
+combat_event spans are also written to Redis via record_combat_span() so the
+Unity Fight Lab panel (/demo/fight-lab) can show the last trace.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from dataclasses import asdict
-from uuid import uuid4
+import time
+from typing import TYPE_CHECKING, Any
 
-from backend.models import CombatTelemetry, FightLabTrace, TraceSpan
+if TYPE_CHECKING:
+    from backend.models import AgentResponse, CombatTelemetry
 
 log = logging.getLogger(__name__)
 
+_tracer = None
+_active = False
 
-def _try_export_to_phoenix(trace: FightLabTrace) -> None:
-    """Optional: export the trace to Arize Phoenix via OpenTelemetry.
 
-    Requires one of:
-      PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces   (self-hosted)
-      ARIZE_API_KEY + ARIZE_SPACE_ID                               (Arize cloud)
+def setup_tracing() -> bool:
+    """Register Arize OTel provider + auto-instrument OpenAI. Call once at startup."""
+    global _tracer, _active
 
-    Install deps:  pip install arize-phoenix-otel openinference-instrumentation
-    """
-    endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT")
-    arize_key = os.getenv("ARIZE_API_KEY")
-    arize_space = os.getenv("ARIZE_SPACE_ID")
+    api_key  = os.getenv("ARIZE_API_KEY", "").strip()
+    space_id = os.getenv("ARIZE_SPACE_ID", "").strip()
 
-    if not endpoint and not (arize_key and arize_space):
-        return  # Arize not configured — local-only mode
+    if not (api_key and space_id):
+        log.info("[Arize] ARIZE_API_KEY / ARIZE_SPACE_ID not set — tracing disabled")
+        return False
 
     try:
-        from opentelemetry import trace as otel_trace
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from arize.otel import register  # type: ignore[import-untyped]
 
-        if arize_key and arize_space and not endpoint:
-            # Arize cloud endpoint (space-based routing).
-            endpoint = f"https://otlp.arize.com/v1/traces"
-            headers = {"authorization": f"Bearer {arize_key}", "space-id": arize_space}
-        else:
-            headers = {}
+        tracer_provider = register(
+            space_id=space_id,
+            api_key=api_key,
+            model_id="kiforge-arena",
+        )
 
-        exporter = OTLPSpanExporter(endpoint=endpoint, headers=headers)
-        provider = TracerProvider()
-        provider.add_span_processor(SimpleSpanProcessor(exporter))
-        tracer = provider.get_tracer("kiforge.fight_lab")
+        # Auto-instrument every OpenAI client call (ASI:One is OpenAI-compatible).
+        try:
+            from openinference.instrumentation.openai import OpenAIInstrumentor  # type: ignore[import-untyped]
+            OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
+            log.info("[Arize] OpenAI auto-instrumentation active")
+        except ImportError:
+            log.warning("[Arize] openinference-instrumentation-openai not found — LLM spans skipped")
 
-        with tracer.start_as_current_span(
-            "MatchTurn",
-            attributes={
-                "trace_id": trace.trace_id,
-                "match_id": trace.match_id,
-                "player_id": trace.player_id,
-                "round": trace.round,
-            },
-        ) as root:
-            for span_data in trace.spans:
-                with tracer.start_as_current_span(
-                    span_data.name,
-                    attributes={
-                        f"input.{k}": str(v) for k, v in (span_data.inputs or {}).items()
-                    },
-                ) as span:
-                    for k, v in (span_data.outputs or {}).items():
-                        span.set_attribute(f"output.{k}", str(v))
+        from opentelemetry import trace  # type: ignore[import-untyped]
+        _tracer = trace.get_tracer("kiforge.arena")
+        _active = True
+        log.info("[Arize] Tracing active → space %s…", space_id[:12])
+        return True
 
-        log.debug("[Arize] Exported trace %s (%d spans) to %s", trace.trace_id, len(trace.spans), endpoint)
-    except Exception as exc:
-        log.warning("[Arize] Phoenix export failed (non-fatal): %s", exc)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("[Arize] Setup failed (%s) — continuing without tracing", exc)
+        return False
 
 
-def build_fight_lab_trace(
-    *,
+def record_combat_span(
+    event: "CombatTelemetry",
+    response: "AgentResponse",
     player_id: str,
-    match_id: str,
-    event: CombatTelemetry,
-    profile_before: dict,
-    boss_action: str,
-    strategy: str,
-    move_name: str,
-    narration: str,
-    evaluation: object,
-    profile_after: dict,
-    strategy_weights: dict[str, float],
-) -> FightLabTrace:
-    eval_payload = evaluation.to_dict() if hasattr(evaluation, "to_dict") else asdict(evaluation)
-    trace = FightLabTrace(
-        trace_id=f"trace_{uuid4().hex[:12]}",
-        match_id=match_id,
-        player_id=player_id,
-        round=event.round,
-        spans=[
-            TraceSpan(
-                name="ReadPlayerMemory",
-                inputs={"player_id": player_id},
-                outputs={"profile": profile_before},
-            ),
-            TraceSpan(
-                name="EnemyAgentDecision",
-                inputs={"telemetry": asdict(event), "profile": profile_before},
-                outputs={"boss_action": boss_action, "strategy": strategy, "strategy_weights": strategy_weights},
-            ),
-            TraceSpan(
-                name="NarratorAgentGenerateCommentary",
-                inputs={"player_action": event.player_action, "damage": event.damage_dealt_by_player},
-                outputs={"move_name": move_name, "narration": narration},
-            ),
-            TraceSpan(
-                name="FightLabEvaluateDecision",
-                inputs={"boss_action": boss_action, "outcome": event.outcome},
-                outputs=eval_payload,
-            ),
-            TraceSpan(
-                name="UpdateStrategyMemory",
-                inputs={"profile_before": profile_before, "evaluation": eval_payload},
-                outputs={"profile_after": profile_after, "strategy_weights": strategy_weights},
-            ),
-        ],
-    )
-    _try_export_to_phoenix(trace)
-    return trace
+) -> dict[str, Any]:
+    """Emit an OTel span for one combat round and return a dict for Redis storage."""
+    trace_dict: dict[str, Any] = {
+        "ts": time.time(),
+        "player_id": player_id,
+        "event": event.player_action,
+        "round": event.round,
+        "outcome": event.outcome,
+        "boss_health": event.boss_health_after,
+        "player_health": event.player_health_after,
+        "move_name": response.move_name,
+        "boss_action": response.boss_action,
+        "narration": response.narration,
+        "arize_active": _active,
+        "trace_id": "",
+    }
+
+    if _tracer is None:
+        return trace_dict
+
+    with _tracer.start_as_current_span("combat_event") as span:
+        span.set_attribute("player.id", player_id)
+        span.set_attribute("player.action", event.player_action)
+        span.set_attribute("player.health_after", event.player_health_after)
+        span.set_attribute("combat.round", event.round)
+        span.set_attribute("combat.outcome", event.outcome)
+        span.set_attribute("combat.damage_by_player", event.damage_dealt_by_player)
+        span.set_attribute("combat.damage_by_boss", event.damage_dealt_by_boss)
+        span.set_attribute("boss.action", response.boss_action)
+        span.set_attribute("boss.health_after", event.boss_health_after)
+        span.set_attribute("narrator.move_name", response.move_name)
+        span.set_attribute("narrator.narration", response.narration)
+        style = (response.player_profile or {}).get("style", "")
+        span.set_attribute("player.style", style)
+
+        from opentelemetry import trace as otel_trace  # type: ignore[import-untyped]
+        ctx = otel_trace.get_current_span().get_span_context()
+        if ctx and ctx.is_valid:
+            trace_dict["trace_id"] = format(ctx.trace_id, "032x")
+
+    return trace_dict

@@ -3,6 +3,7 @@ from __future__ import annotations
 from backend.agents.enemy_agent import EnemyAgent
 from backend.agents.narrator_agent import NarratorAgent
 from backend.agents.recap_agent import RecapAgent
+from backend.fight_tracing import record_combat_span
 from backend.models import AgentResponse, CombatTelemetry
 from backend.player_memory import (
     build_player_profile,
@@ -137,6 +138,10 @@ class GameMasterAgent:
             trace={},
             recap_job={},
         )
+
+        trace_dict = record_combat_span(event, response, player_id)
+        self.store.append_trace(player_id, trace_dict)
+
         self.latest_response = response
         return response
 

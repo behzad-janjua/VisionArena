@@ -12,6 +12,7 @@ from backend.agents import GameMasterAgent
 from backend.agents.game_master_agent import _TRACKED_ABILITIES
 from backend.agentverse_adapter import respond_to_text as respond_to_agent_text
 from backend.commentary_adapter import respond_to_commentary_text
+from backend.fight_tracing import setup_tracing
 from backend.models import CombatTelemetry, EventType, NormalizedEvent
 from backend.player_memory import style_vector
 from backend.vision_bridge import vision_bridge_stream
@@ -89,6 +90,7 @@ async def _vision_task() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_tracing()
     task = asyncio.create_task(_vision_task())
     try:
         yield
