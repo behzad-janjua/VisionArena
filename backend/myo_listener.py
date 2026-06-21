@@ -12,7 +12,7 @@ MYO pose -> game event mapping
   fingers_spread    -> GUARD_START (held) / GUARD_END (released)
 
 Charge tier (mirrors CombatConfig.cs and plan.md)
-  0.15-1.0 s  -> level 1  (small bolt)
+  0.20-1.0 s  -> level 1  (small bolt)
   1.0-2.0 s   -> level 2  (medium blast)
   2.0-3.5 s   -> level 3  (beam)
   3.5+   s    -> level 4  (ultimate cannon)
@@ -170,11 +170,18 @@ class _MyoBridge:
         self._fist_ticks: int = 0   # consecutive ticks above threshold (entry debounce)
         self._rest_ticks: int = 0   # consecutive ticks below threshold (exit debounce)
         self._tick_count: int = 0
+        self._current_pose: str = "rest"
+        self._prev_pose: str = "rest"
+        self._last_logged_state: str | None = None
 
         self._myo.add_emg_handler(self._on_emg)
+        self._myo.add_pose_handler(self._on_pose)
 
     def _on_emg(self, emg: tuple, movement: Any) -> None:
         self._emg = [abs(v) for v in emg]
+
+    def _on_pose(self, pose: Any) -> None:
+        self._current_pose = str(pose.name) if hasattr(pose, "name") else str(pose)
 
     def _emg_intensity(self) -> float:
         """RMS of all 8 raw EMG channels, normalised to [0, 1]."""
@@ -218,7 +225,7 @@ class _MyoBridge:
 
         # Print only on state change
         new_state = "FIST" if fist else "rest"
-        if new_state != getattr(self, "_last_logged_state", None):
+        if new_state != self._last_logged_state:
             peak = max(raw) if raw else 0
             active = sum(1 for v in raw if v > self._EMG_CHAN_THRESHOLD)
             print(f"[MYO] {new_state}  emg={emg:.2f}  peak={peak}  active_channels={active}/{len(raw)}", flush=True)
@@ -243,6 +250,32 @@ class _MyoBridge:
                     print(f"\n[MYO] >>> PUNCH fired  (held {hold:.2f}s  charge={charge:.2f})", flush=True)
                 else:
                     print(f"\n[MYO]     twitch ignored ({hold:.3f}s < {_CHARGE_THRESHOLD}s threshold)", flush=True)
+
+        # Pose-based gestures: guard, directional slashes, ultimate
+        # _on_pose fires during self._myo.run() above, so _current_pose is fresh here.
+        pose = self._current_pose
+        if pose != self._prev_pose:
+            self._prev_pose = pose
+            if pose in ("fingers_spread", "spread"):
+                if not self._shield_active:
+                    self._shield_active = True
+                    events.append(_simple_evt(_EVT_SHIELD_START))
+                    print("[MYO] -> GUARD_START", flush=True)
+            else:
+                if self._shield_active:
+                    self._shield_active = False
+                    events.append(_simple_evt(_EVT_SHIELD_END))
+                    print("[MYO] -> GUARD_END", flush=True)
+                if not fist:
+                    if pose == "wave_in":
+                        events.append(_simple_evt(_EVT_SLASH_LEFT))
+                        print("[MYO] -> LEFT_PUNCH", flush=True)
+                    elif pose == "wave_out":
+                        events.append(_simple_evt(_EVT_SLASH_RIGHT))
+                        print("[MYO] -> RIGHT_PUNCH", flush=True)
+                    elif pose == "double_tap":
+                        events.append(_simple_evt(_EVT_ULTIMATE))
+                        print("[MYO] -> VERY_HEAVY_PUNCH", flush=True)
 
         return events
 
@@ -271,11 +304,16 @@ async def myo_event_stream(ws_url: str | None = None) -> None:
     bridge = _MyoBridge()
     bridge.connect()
 
+    import websockets  # type: ignore
+
     ws = None
     if ws_url:
-        import websockets  # type: ignore
-        ws = await websockets.connect(ws_url)
-        log.info("[MYO] Streaming to %s", ws_url)
+        try:
+            ws = await websockets.connect(ws_url)
+            log.info("[MYO] Streaming to %s", ws_url)
+        except Exception as exc:
+            print(f"[MYO] Cannot connect to {ws_url}: {exc}", flush=True)
+            print("[MYO] Backend may not be running — events will print to stdout instead", flush=True)
 
     tick_s = 1.0 / _UPDATE_HZ
     cu_log_count = 0
@@ -285,17 +323,22 @@ async def myo_event_stream(ws_url: str | None = None) -> None:
             for evt in evts:
                 payload = json.dumps(asdict(evt))
                 if ws is not None:
-                    await ws.send(payload)
-                    if evt.type == _EVT_CHARGE_UPDATE:
-                        cu_log_count += 1
-                        if cu_log_count % 10 == 1:  # ~2 Hz
-                            p = evt.payload
-                            print(f"[MYO] -> CHARGE_UPDATE  charge={p.get('charge', 0):.2f}  hold={p.get('holdSeconds', 0):.1f}s  emg={p.get('emgIntensity', 0):.2f}", flush=True)
-                    else:
-                        cu_log_count = 0
-                        print(f"[MYO] -> {evt.type}", flush=True)
-                else:
+                    try:
+                        await ws.send(payload)
+                    except Exception as exc:
+                        print(f"[MYO] WebSocket send failed ({exc}) — backend down? Falling back to stdout", flush=True)
+                        ws = None
+                if ws is None:
                     print(payload)
+                    continue
+                if evt.type == _EVT_CHARGE_UPDATE:
+                    cu_log_count += 1
+                    if cu_log_count % 10 == 1:  # ~2 Hz
+                        p = evt.payload
+                        print(f"[MYO] -> CHARGE_UPDATE  charge={p.get('charge', 0):.2f}  hold={p.get('holdSeconds', 0):.1f}s  emg={p.get('emgIntensity', 0):.2f}", flush=True)
+                else:
+                    cu_log_count = 0
+                    print(f"[MYO] -> {evt.type}", flush=True)
             await asyncio.sleep(tick_s)
     except KeyboardInterrupt:
         log.info("[MYO] Stopped by user")

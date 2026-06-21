@@ -11,7 +11,7 @@ from backend.redis_store import RedisStore
 log = logging.getLogger(__name__)
 
 _VAPI_BASE = "https://api.vapi.ai"
-_MAX_CALL_SECONDS = 90  # hard cap keeps the demo tight
+_MAX_CALL_SECONDS = 40  # hard cap keeps the demo tight
 
 
 def trigger_boss_call(phone: str, player_id: str, store: RedisStore) -> dict[str, Any]:
@@ -28,7 +28,7 @@ def trigger_boss_call(phone: str, player_id: str, store: RedisStore) -> dict[str
 
     body: dict[str, Any] = {
         "assistant": {
-            "firstMessage": "I remember you." if memory_context else "So. You think you can fight.",
+            "firstMessage": "I know exactly how you fight. This won't take long." if memory_context else "You called the wrong number. Or maybe the right one.",
             "model": {
                 "provider": "anthropic",
                 "model": "claude-haiku-4-5-20251001",

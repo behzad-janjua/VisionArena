@@ -133,6 +133,7 @@ def _blocking_init(PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptio
     cap = cv2.VideoCapture(_CAMERA_INDEX)
     if not cap.isOpened():
         raise RuntimeError(f"Camera index {_CAMERA_INDEX} not available")
+    cap.set(cv2.CAP_PROP_FPS, _TARGET_FPS)
     for _ in range(10):
         ret, _ = cap.read()
         if ret:
@@ -194,7 +195,7 @@ async def vision_bridge_stream() -> AsyncIterator[NormalizedEvent]:
         return
 
     executor = ThreadPoolExecutor(max_workers=1)
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     try:
         cap, landmarker = await loop.run_in_executor(
             executor, _blocking_init, PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions
@@ -216,7 +217,7 @@ async def vision_bridge_stream() -> AsyncIterator[NormalizedEvent]:
             if payload:
                 yield _make_event(payload)
     finally:
-        loop.run_in_executor(executor, cap.release)
+        cap.release()
         executor.shutdown(wait=False)
 
 

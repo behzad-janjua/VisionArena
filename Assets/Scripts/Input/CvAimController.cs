@@ -98,7 +98,7 @@ namespace KiForge.Input
 
         private void OnPose(PoseEvent pose)
         {
-            if (pose.mock || pose.confidence < confidenceThreshold)
+            if (pose.confidence < confidenceThreshold)
                 return;
 
             var g = string.IsNullOrEmpty(pose.gesture) ? "none" : pose.gesture;

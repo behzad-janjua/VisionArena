@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dotenv import load_dotenv
+load_dotenv()
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -238,6 +240,33 @@ def agent_manifest() -> dict[str, Any]:
         "state_endpoint": "/agent/state",
         "example_message": "start duel",
     }
+
+
+class BossCallRequest(BaseModel):
+    phone: str = Field(..., description="Player phone in E.164 format, e.g. +12125551234")
+    player_id: str = Field("demo_player")
+
+
+@app.post("/boss-call")
+def boss_call(payload: BossCallRequest) -> dict[str, Any]:
+    """Trigger an outbound Vapi call from the boss to the player. Blocks game start until /status returns ended."""
+    from backend.vapi_adapter import trigger_boss_call
+    return trigger_boss_call(payload.phone, payload.player_id, _game_master.store)
+
+
+@app.get("/boss-call/{call_id}/status")
+def boss_call_status(call_id: str) -> dict[str, Any]:
+    """Unity polls this every 2 s; when status == 'ended' the arena is unblocked."""
+    from backend.vapi_adapter import get_call_status
+    return get_call_status(call_id, _game_master.store)
+
+
+@app.post("/vapi-webhook")
+async def vapi_webhook(request: Request) -> dict[str, str]:
+    """Vapi end-of-call webhook — marks the call ended so the status poll unblocks Unity."""
+    from backend.vapi_adapter import process_webhook
+    process_webhook(await request.json(), _game_master.store)
+    return {"status": "ok"}
 
 
 @app.websocket("/ws/unity")
