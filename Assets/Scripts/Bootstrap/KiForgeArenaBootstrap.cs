@@ -87,7 +87,7 @@ namespace KiForge.Bootstrap
 
                 // --- Boss AI (right): backend/Agentverse-driven decisions + local fallback ---
                 var bossAgent = boss.AddComponent<BackendBossAgent>();
-                bossAgent.Initialize("http://127.0.0.1:8000/agent/combat");
+                bossAgent.Initialize("http://127.0.0.1:8000/agent/combat?player_id=demo_player");
                 var bossBrain = boss.AddComponent<BossAgentController>();
                 bossBrain.Initialize(bossFighter, player.transform, bossHealth, playerHealth, bossAgent,
                     () => "balanced", playerInput);
@@ -186,6 +186,10 @@ namespace KiForge.Bootstrap
                 // --- Damage numbers: static red labels below each health bar ---
                 var dmgNumbers = new GameObject("DamageNumberUI").AddComponent<DamageNumberUI>();
                 dmgNumbers.Setup(playerHealth, bossHealth);
+
+                // --- Redis sponsor panel: always visible, R to toggle, polls /demo/redis ---
+                var redisPanel = new GameObject("RedisSponsorPanelUI").AddComponent<RedisSponsorPanelUI>();
+                redisPanel.Setup("demo_player");
 
                 // --- AI Fight Lab panel: Tab to toggle, polls /demo/fight-lab ---
                 var fightLab = new GameObject("FightLabPanelUI").AddComponent<FightLabPanelUI>();

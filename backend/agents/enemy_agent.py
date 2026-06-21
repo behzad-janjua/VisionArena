@@ -107,10 +107,10 @@ class EnemyAgent:
             "memory_recall": recall,
             "mode": mode,
             "arize_fix": (
-                "Fight Lab detected the baseline counter was weak, then switched Battle Agent "
-                "to the evaluated counter-policy."
+                "Local Fight Lab logged the baseline counter score; Battle Agent now uses "
+                "the deterministic counter-policy for this detected style."
                 if learning_enabled
-                else "Baseline policy has not learned yet; Fight Lab will evaluate this mistake."
+                else "Baseline policy is collecting its first local eval before counter-policy mode."
             ),
         }
 
@@ -152,7 +152,7 @@ class EnemyAgent:
         return (
             "Use the naive starter policy before fight-lab feedback is available.",
             f"Throw a predictable {boss_action} even if it may not counter {event.player_action}.",
-            "If this scores badly, Arize/Fight Lab promotes the adaptive counter-policy next turn.",
+            "If this scores badly, local Fight Lab records it and the next turn uses counter-policy mode.",
         )
 
     @staticmethod

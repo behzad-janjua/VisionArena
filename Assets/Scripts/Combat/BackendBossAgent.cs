@@ -14,7 +14,7 @@ namespace KiForge.Combat
     /// </summary>
     public sealed class BackendBossAgent : MonoBehaviour, IBossAgent
     {
-        [SerializeField] private string endpoint = "http://127.0.0.1:8000/agent/combat";
+        [SerializeField] private string endpoint = "http://127.0.0.1:8000/agent/combat?player_id=demo_player";
         [SerializeField] private float requestTimeoutSeconds = 0.75f;
         [SerializeField] private bool useBackend = true;
 

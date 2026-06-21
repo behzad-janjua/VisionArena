@@ -11,7 +11,7 @@ from backend.uagents_app import handle_agent_message
 
 # --- Enemy agent strategy logic -------------------------------------------- #
 
-def test_enemy_recommends_dodge_for_heavy_punch() -> None:
+def test_enemy_recommends_pressure_for_heavy_punch() -> None:
     event = CombatTelemetry(
         round=1, player_action="heavy_punch", charge_time=3.2, accuracy=0.8,
         damage_dealt_by_player=42, damage_dealt_by_boss=0, boss_action="pressure",
@@ -21,7 +21,7 @@ def test_enemy_recommends_dodge_for_heavy_punch() -> None:
     counter  = _recommended_counter(strategy)
 
     assert strategy == "heavy_puncher"
-    assert counter  == "dodge"
+    assert counter  == "pressure"
 
 
 def test_enemy_recommends_heavy_counter_for_guard_turtle() -> None:
@@ -141,7 +141,7 @@ def test_battle_agent_switches_to_adapted_on_second_event() -> None:
 
     assert first.learning_mode  == "baseline"
     assert second.learning_mode == "adapted"
-    assert second.boss_action   == "dodge"
+    assert second.boss_action   == "pressure"
 
 
 # --- Agentverse / adapter -------------------------------------------------- #
@@ -179,7 +179,7 @@ def test_agentverse_text_adapter_runs_demo_turn() -> None:
                 "intent": "Deny windup space.",
                 "execute": "Step in with punches.",
                 "contingency": "Punish guard next.",
-                "arize_fix": "Fight Lab fixed the baseline.",
+                "arize_fix": "Local Fight Lab recorded the baseline.",
             },
         }
 

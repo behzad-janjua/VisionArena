@@ -47,7 +47,7 @@ def format_combat_reply(result: dict) -> str:
             f"2. Intent: {plan.get('intent', 'Choose a safe counter.')}\n"
             f"3. Execute: {plan.get('execute', result.get('boss_action', 'adapt'))}\n"
             f"4. If wrong: {plan.get('contingency', 'Reset spacing and reread.')}\n"
-            f"Fight Lab: {plan.get('arize_fix', 'Evaluation will update the next decision.')}"
+            f"Fight Lab: {plan.get('arize_fix', 'Local evaluation will inform the next decision.')}"
         )
 
     return (

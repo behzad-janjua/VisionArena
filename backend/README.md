@@ -15,7 +15,7 @@ Demo endpoints:
 
 - `GET /demo/state` returns player memory, recent combat telemetry, traces, and recap jobs.
 - `GET /demo/player-profile` returns the Redis-backed player profile.
-- `GET /demo/fight-lab` returns Arize-style evals, adaptation, strategy weights, and traces.
+- `GET /demo/fight-lab` returns deterministic local Fight Lab evals, adaptation, strategy weights, and traces. When Arize env vars are set, those spans are also exported.
 - `GET /demo/recap` returns the latest Pika prompt plus queued recap jobs.
 - `GET /demo/redis` is the Redis sponsor panel: backend type, boss phase, live TTL cooldowns, generated move names, recent match-stream entries, and vector recall.
 - `GET /demo/memory-recall` runs KNN over player-style vectors to find the most similar player the boss has fought before.

@@ -8,11 +8,11 @@ namespace KiForge.UI
     /// <summary>
     /// Tab-toggled overlay that shows live boss AI state from /demo/fight-lab.
     /// Top section: player style + boss strategy weights + adaptation.
-    /// Bottom section: last Arize trace (or "no trace" when ARIZE_API_KEY is unset).
+    /// Bottom section: the latest deterministic local eval, optionally exported to Arize.
     /// </summary>
     public sealed class FightLabPanelUI : MonoBehaviour
     {
-        private const string FightLabUrl = "http://127.0.0.1:8000/demo/fight-lab";
+        private const string FightLabUrl = "http://127.0.0.1:8000/demo/fight-lab?player_id=demo_player";
         private const float PollInterval  = 2f;
 
         private GameObject panel;
@@ -93,16 +93,16 @@ namespace KiForge.UI
                 $"PLAYER STYLE:  {style}\n" +
                 $"TOP MOVE:      {move}\n" +
                 $"BOSS ADAPT:    {Truncate(adapt, 80)}\n\n" +
-                $"ARIZE EVAL  counter_success:  baseline {Pct(beforeRaw)}  →  adapted {Pct(afterRaw)}\n\n" +
+                $"LOCAL EVAL  counter_success:  baseline {Pct(beforeRaw)}  ->  adapted {Pct(afterRaw)}\n\n" +
                 $"STRATEGY WEIGHTS\n" +
                 $"  Pressure {Pct(pressure)}  Dodge {Pct(dodge)}  Jab {Pct(jab)}" +
                 $"  Guard {Pct(guard)}  Heavy {Pct(heavy)}";
 
-            // Arize trace section
+            // Fight Lab trace section
             var traceRaw = ExtractBlock(json, "last_trace");
             if (string.IsNullOrEmpty(traceRaw) || traceRaw == "{}" || traceRaw == "{ }")
             {
-                traceText.text = "No Arize trace  —  set ARIZE_API_KEY in .env to enable";
+                traceText.text = "No Fight Lab trace yet - land a hit to record a local eval.";
             }
             else
             {
@@ -113,7 +113,7 @@ namespace KiForge.UI
                 var tMode     = Extract(traceRaw, "learning_mode");
                 var tBoss     = Extract(traceRaw, "boss_action");
                 traceText.text =
-                    $"LAST ARIZE TRACE  [{tMode}]\n" +
+                    $"LAST FIGHT LAB EVAL  [{tMode}]\n" +
                     $"  Round {tRound}  player: {tEvt}  boss: {tBoss}\n" +
                     $"  Outcome: {tOutcome}  counter_success: {tCounter}";
             }
@@ -212,10 +212,10 @@ namespace KiForge.UI
             titleLbl.text  = "AI FIGHT LAB  [Tab to close]";
             titleLbl.color = Color.white;
 
-            // Hint — "source: Arize"
+            // Hint: local eval is always present; Arize export is optional.
             var hintGO  = MakeChild(panel.transform, "Hint", 0f, 400f, 780f, 20f);
             var hintTxt = AddText(hintGO, 12, FontStyle.Normal, TextAnchor.MiddleRight);
-            hintTxt.text  = "source: /demo/fight-lab + Arize Phoenix  ";
+            hintTxt.text  = "source: deterministic local eval + optional Arize export  ";
             hintTxt.color = new Color(0.5f, 0.7f, 1f, 0.7f);
 
             // Divider

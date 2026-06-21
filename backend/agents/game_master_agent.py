@@ -19,7 +19,7 @@ from backend.redis_store import RedisStore
 def _counter_success(boss_action: str, outcome: str) -> float:
     """1.0 if the boss's counter actually worked this round, 0.0 if not.
 
-    This is the core Arize eval metric: baseline rounds score low because
+    This is the core local Fight Lab eval metric: baseline rounds score low because
     _bad_first_guess always jabs; adapted rounds score high because the
     counter-policy is chosen to beat the detected player style.
     """

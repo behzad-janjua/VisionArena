@@ -67,7 +67,7 @@ namespace KiForge.Combat
             // backend WebSocket and map its JSON response onto BossDecision.
             //   request  = context (player_style, punch timing, accuracy, health gap)
             //   response = { move_name, boss_reaction, next_strategy }
-            // Arize traces/evals (see ArizeCoachFeedback) feed the strategy update.
+            // Local Fight Lab evals feed the strategy update; Arize export is optional.
             // ---------------------------------------------------------------
             weights.AdaptForStyle(context.playerStyle);
             lastStyle = context.playerStyle;
