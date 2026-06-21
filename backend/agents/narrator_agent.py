@@ -66,46 +66,26 @@ class NarratorAgent:
 
     @staticmethod
     def _fallback(event: CombatTelemetry, pattern_hint: str = "") -> tuple[str, str]:
-        dmg      = max(0, int(event.damage_dealt_by_player))
-        finisher = event.outcome in {"boss_ko", "match_end"} or event.boss_health_after <= 0
-        low_hp   = event.boss_health_after <= 30
-
-        # Pattern chirps take priority
-        if "guarding" in pattern_hint or "blocking" in pattern_hint:
-            return "The Big Stall", "bro when are you actually going to fight lol"
-
-        if "spamming" in pattern_hint:
-            action = event.player_action.replace("_", " ")
-            return "Same Move Again", f"he doesn't know any other move, just {action} every time"
-
-        # Per-action lines
+        """Plain safety net — only runs when the LLM is unavailable."""
         action = event.player_action
+        dmg    = max(0, int(event.damage_dealt_by_player))
 
-        if action == "very_heavy_punch":
-            move = "The Big One"
-            line = f"WAIT WAIT — that actually landed for {dmg} damage??" if dmg > 0 else "ok he wound up for like 3 seconds and missed"
-        elif action == "heavy_punch":
-            move = "The Haymaker"
-            line = f"ok that was actually clean, {dmg} damage" if dmg > 0 else "he telegraphed that one way too hard"
-        elif action == "left_punch":
-            move = "Left Hook Thing"
-            line = "left one snuck through" if dmg > 0 else "oof, nothing"
-        elif action == "right_punch":
-            move = "Right Jab"
-            line = "right one lands clean" if dmg > 0 else "boss just slapped that away"
-        elif action in _GUARD_ACTIONS:
-            move = "The Turtle"
-            line = "still blocking... still blocking... ok we get it"
-        elif action == "punch_combo":
-            move = "The String"
-            line = f"combo lands for {dmg} — he's actually cooking"
+        move_names = {
+            "very_heavy_punch": "Full Send",
+            "heavy_punch":      "Haymaker",
+            "left_punch":       "Left Jab",
+            "right_punch":      "Right Jab",
+            "guard":            "Guard",
+            "block":            "Block",
+            "punch_combo":      "Combo",
+        }
+        move = move_names.get(action, "Attack")
+
+        if event.outcome in {"boss_ko", "match_end"} or event.boss_health_after <= 0:
+            line = "KO — match over."
+        elif dmg > 0:
+            line = f"{move} connects for {dmg} damage."
         else:
-            move = "Something"
-            line = "I'm not sure what that was but ok"
-
-        if finisher:
-            line = "YOOO HE'S DOWN. BRO IT'S OVER."
-        elif low_hp and action not in _GUARD_ACTIONS:
-            line = f"{line} — one more and he's done"
+            line = f"{move} — no damage."
 
         return move, line
