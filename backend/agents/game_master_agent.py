@@ -5,12 +5,14 @@ from backend.agents.narrator_agent import NarratorAgent
 from backend.agents.recap_agent import RecapAgent
 from backend.fight_tracing import record_combat_span
 from backend.models import AgentResponse, CombatTelemetry
+from backend.pika_recap import FightHighlights, build_cinematic_prompt
 from backend.player_memory import (
     build_player_profile,
     describe_adaptation,
     strategy_weights_for_profile,
     style_vector,
 )
+from backend.recap_queue import RecapQueue
 from backend.redis_store import RedisStore
 
 
@@ -36,6 +38,8 @@ class GameMasterAgent:
         self.narrator = NarratorAgent()
         self.recap = RecapAgent()
         self.store = store or RedisStore()
+        self.recap_queue = RecapQueue()
+        self.highlights = FightHighlights()
         self.events: list[CombatTelemetry] = []
         self.latest_response: AgentResponse | None = None
         self.match_id = "demo_match"
@@ -51,6 +55,7 @@ class GameMasterAgent:
         move_name, narration = self.narrator.narrate(event)
         evaluated_event = CombatTelemetry(**{**event.__dict__, "boss_action": boss_action})
 
+        self.highlights.record(evaluated_event, move_name)
         self.events.append(evaluated_event)
         self.store.append_match_event(player_id, evaluated_event.__dict__)
 
@@ -58,7 +63,16 @@ class GameMasterAgent:
         profile_after = build_player_profile(updated_events)
         strategy_weights = strategy_weights_for_profile(profile_after)
         adaptation = describe_adaptation(profile_after, strategy_weights)
-        recap_prompt = self.recap.create_prompt(self.events, move_name)
+        recap_prompt = build_cinematic_prompt(self.highlights)
+
+        # On KO, submit the highlight reel to Pika/Kling for video generation.
+        recap_job: dict = {}
+        if event.outcome in {"boss_ko", "player_ko", "match_end"} or event.boss_health_after <= 0:
+            recap_job = self.recap_queue.enqueue(
+                recap_prompt,
+                metadata={"player_id": player_id, "round": event.round, "outcome": event.outcome},
+            )
+            self.highlights = FightHighlights()  # reset for next match
 
         # --- Redis associative memory: recall the most similar past player so the
         # boss can reuse the strategy that worked against them, then index this one.
@@ -136,7 +150,7 @@ class GameMasterAgent:
             tactical_plan=tactical_plan,
             learning_mode=learning_mode,
             trace={},
-            recap_job={},
+            recap_job=recap_job,
         )
 
         trace_dict = record_combat_span(event, response, player_id)
