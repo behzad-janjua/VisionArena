@@ -39,7 +39,7 @@ namespace KiForge.UI
         // ------------------------------------------------------------------ //
         private bool       stylesReady;
         private GUIStyle   titleStyle, subtitleStyle, mutedStyle, fieldStyle,
-                           btnStyle, errorStyle, callingStyle, cardStyle;
+                           btnStyle, errorStyle, callingStyle, cardStyle, skipStyle;
         private Texture2D  overlayTex, cardTex, fieldTex, btnTex, btnHoverTex, clearTex;
 
         // ------------------------------------------------------------------ //
@@ -113,6 +113,12 @@ namespace KiForge.UI
             // Focus the input field on first render
             if (Event.current.type == EventType.Layout)
                 GUI.FocusControl("PhoneField");
+
+            // Skip button — fixed to the bottom of the card so it stays out of the way
+            float skipY = cy + (calling ? 520f : 680f) - 68f;
+            if (GUI.Button(new Rect(cx + pad, skipY, inner, 48f),
+                    "skip — enter arena without calling", skipStyle))
+                SkipToArena();
         }
 
         private void RenderCallingState(float cx, float cy, float cw)
@@ -224,6 +230,12 @@ namespace KiForge.UI
             FinishCall(); // hard timeout — start anyway
         }
 
+        private void SkipToArena()
+        {
+            Destroy(gameObject);
+            onComplete?.Invoke();
+        }
+
         private void FinishCall()
         {
             callEnded = true;
@@ -314,6 +326,16 @@ namespace KiForge.UI
                 fontStyle = FontStyle.Bold,
                 alignment = TextAnchor.MiddleCenter,
                 normal    = { textColor = BossRed },
+            };
+
+            skipStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontSize  = 28,
+                alignment = TextAnchor.MiddleCenter,
+                normal    = { textColor = MutedText, background = clearTex },
+                hover     = { textColor = DimText,   background = clearTex },
+                active    = { textColor = Color.white, background = clearTex },
+                focused   = { textColor = MutedText,  background = clearTex },
             };
         }
 

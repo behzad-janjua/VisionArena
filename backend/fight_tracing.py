@@ -80,6 +80,8 @@ def record_combat_span(
         "move_name": response.move_name,
         "boss_action": response.boss_action,
         "narration": response.narration,
+        "counter_success": round(response.counter_success, 2),
+        "learning_mode": response.learning_mode,
         "arize_active": _active,
         "trace_id": "",
     }
@@ -101,6 +103,12 @@ def record_combat_span(
         span.set_attribute("narrator.narration", response.narration)
         style = (response.player_profile or {}).get("style", "")
         span.set_attribute("player.style", style)
+        span.set_attribute("boss.counter_success", round(response.counter_success, 3))
+        span.set_attribute("combat.learning_mode", response.learning_mode)
+        before = (response.player_profile or {}).get("boss_counter_success_before", 0.0)
+        after  = (response.player_profile or {}).get("boss_counter_success_after",  0.0)
+        span.set_attribute("eval.counter_success_before", round(float(before), 3))
+        span.set_attribute("eval.counter_success_after",  round(float(after),  3))
 
         from opentelemetry import trace as otel_trace  # type: ignore[import-untyped]
         ctx = otel_trace.get_current_span().get_span_context()

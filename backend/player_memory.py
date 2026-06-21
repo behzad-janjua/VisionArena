@@ -33,7 +33,6 @@ def style_vector(profile: dict[str, Any]) -> list[float]:
 
 
 def build_player_profile(events: list[dict[str, Any]], evals: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    evals = evals or []
     actions = [str(event.get("player_action", "")) for event in events]
     counts = Counter(actions)
     total = max(len(events), 1)
@@ -63,9 +62,12 @@ def build_player_profile(events: list[dict[str, Any]], evals: list[dict[str, Any
     ):
         style = "combo_puncher"
 
-    counter_scores = [float(item.get("counter_success", 0.0)) for item in evals]
+    # counter_success is stored in each event by GameMasterAgent.
+    # Round 0 is always baseline (_bad_first_guess); rounds 1+ use the adapted policy.
+    # before = first event's score (baseline);  after = avg of last 3 (adapted).
+    counter_scores = [float(e.get("counter_success", -1.0)) for e in events if "counter_success" in e]
     before = counter_scores[0] if counter_scores else 0.0
-    after = sum(counter_scores[-3:]) / len(counter_scores[-3:]) if counter_scores else 0.0
+    after = (sum(counter_scores[-3:]) / len(counter_scores[-3:])) if len(counter_scores) >= 2 else before
 
     return {
         "player_id": "demo_player",

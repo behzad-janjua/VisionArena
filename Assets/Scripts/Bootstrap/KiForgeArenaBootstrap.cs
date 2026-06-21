@@ -29,8 +29,11 @@ namespace KiForge.Bootstrap
         private void InitArena()
         {
             // Y = 0.054 plants the fighters' feet on the GrassField (top at Y = 0).
-            var player = SpawnFighterModel("Player", new Vector3(-2.2f, 0.054f, 0f), new Color(0.12f, 0.9f, 1f));
-            var boss   = SpawnFighterModel("Boss",   new Vector3( 2.2f, 0.054f, 0f), new Color(1f, 0.18f, 0.45f));
+            var player = SpawnFighterModel("Player", new Vector3(-2.2f, 0.054f, 0f), new Color(0.55f, 0.27f, 0.07f, 1f));
+            var boss   = SpawnFighterModel("Boss",   new Vector3( 2.2f, 0.054f, 0f), Color.white,
+                editorModelPath: "Assets/Art/Characters/character.fbx",
+                resourcesName:   "character",
+                applyTint:       false);
 
             if (player != null && boss != null)
             {
@@ -263,12 +266,15 @@ namespace KiForge.Bootstrap
             return camera;
         }
 
-        private static GameObject SpawnFighterModel(string name, Vector3 position, Color tint)
+        private static GameObject SpawnFighterModel(string name, Vector3 position, Color tint,
+            string editorModelPath = "Assets/Art/Animations/Heavy_Punch.fbx",
+            string resourcesName   = "Heavy_Punch",
+            bool   applyTint       = true)
         {
-            GameObject model = Resources.Load<GameObject>("Heavy_Punch");
+            GameObject model = Resources.Load<GameObject>(resourcesName);
 #if UNITY_EDITOR
             if (model == null)
-                model = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Animations/Heavy_Punch.fbx");
+                model = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(editorModelPath);
 #endif
             if (model == null) return null;
 
@@ -285,7 +291,7 @@ namespace KiForge.Bootstrap
                 "Assets/Art/Animations/PunchingRuntime.controller");
             if (controller != null) animator.runtimeAnimatorController = controller;
 #endif
-            TintRenderers(instance, tint);
+            if (applyTint) TintRenderers(instance, tint);
             return instance;
         }
 

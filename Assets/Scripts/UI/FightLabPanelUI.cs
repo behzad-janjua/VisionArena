@@ -75,9 +75,11 @@ namespace KiForge.UI
 
         private void ParseAndDisplay(string json)
         {
-            var style      = Extract(json, "player_style");
-            var move       = Extract(json, "most_common_player_move");
-            var adapt      = Extract(json, "boss_adaptation");
+            var style         = Extract(json, "player_style");
+            var move          = Extract(json, "most_common_player_move");
+            var adapt         = Extract(json, "boss_adaptation");
+            var beforeRaw     = Extract(json, "boss_counter_success_before");
+            var afterRaw      = Extract(json, "boss_counter_success_after");
 
             // Strategy weights live inside the "strategy_weights" sub-object.
             var weightsRaw = ExtractBlock(json, "strategy_weights");
@@ -85,12 +87,13 @@ namespace KiForge.UI
             var dodge      = Extract(weightsRaw, "dodge");
             var jab        = Extract(weightsRaw, "jab");
             var guard      = Extract(weightsRaw, "guard");
-            var heavy      = Extract(weightsRaw, "heavyCounter");
+            var heavy      = Extract(weightsRaw, "heavy_counter");
 
             aiStatsText.text =
                 $"PLAYER STYLE:  {style}\n" +
                 $"TOP MOVE:      {move}\n" +
                 $"BOSS ADAPT:    {Truncate(adapt, 80)}\n\n" +
+                $"ARIZE EVAL  counter_success:  baseline {Pct(beforeRaw)}  →  adapted {Pct(afterRaw)}\n\n" +
                 $"STRATEGY WEIGHTS\n" +
                 $"  Pressure {Pct(pressure)}  Dodge {Pct(dodge)}  Jab {Pct(jab)}" +
                 $"  Guard {Pct(guard)}  Heavy {Pct(heavy)}";
@@ -103,12 +106,16 @@ namespace KiForge.UI
             }
             else
             {
-                var tEvt   = Extract(traceRaw, "event");
-                var tRound = Extract(traceRaw, "round");
-                var tRes   = Extract(traceRaw, "result");
+                var tEvt      = Extract(traceRaw, "event");
+                var tRound    = Extract(traceRaw, "round");
+                var tOutcome  = Extract(traceRaw, "outcome");
+                var tCounter  = Extract(traceRaw, "counter_success");
+                var tMode     = Extract(traceRaw, "learning_mode");
+                var tBoss     = Extract(traceRaw, "boss_action");
                 traceText.text =
-                    $"LAST ARIZE TRACE\n" +
-                    $"  Event: {tEvt}  Round: {tRound}  Result: {tRes}";
+                    $"LAST ARIZE TRACE  [{tMode}]\n" +
+                    $"  Round {tRound}  player: {tEvt}  boss: {tBoss}\n" +
+                    $"  Outcome: {tOutcome}  counter_success: {tCounter}";
             }
         }
 

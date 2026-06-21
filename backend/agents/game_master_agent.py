@@ -16,6 +16,23 @@ from backend.recap_queue import RecapQueue
 from backend.redis_store import RedisStore
 
 
+def _counter_success(boss_action: str, outcome: str) -> float:
+    """1.0 if the boss's counter actually worked this round, 0.0 if not.
+
+    This is the core Arize eval metric: baseline rounds score low because
+    _bad_first_guess always jabs; adapted rounds score high because the
+    counter-policy is chosen to beat the detected player style.
+    """
+    boss = (boss_action or "").lower()
+    out  = (outcome   or "").lower()
+    if "block" in boss or "guard" in boss:
+        return 1.0 if "blocked" in out else 0.0
+    if "dodge" in boss:
+        return 0.0 if "boss_staggered" in out or "boss_ko" in out else 1.0
+    # Attack actions (pressure, jab, heavy_counter): success when boss landed
+    return 1.0 if out in {"player_staggered", "player_ko"} else 0.0
+
+
 # Ability cooldowns (seconds) stored in Redis with a TTL so the HUD can show a
 # live countdown that the boss also reads when deciding how to punish.
 _COOLDOWNS = {"very_heavy_punch": 8.0, "heavy_punch": 3.0, "guard": 2.0}
@@ -54,10 +71,12 @@ class GameMasterAgent:
         boss_action, strategy = self.enemy.choose_response(event, profile_before, learning_enabled=learning_enabled)
         move_name, narration = self.narrator.narrate(event)
         evaluated_event = CombatTelemetry(**{**event.__dict__, "boss_action": boss_action})
+        counter_success = _counter_success(boss_action, event.outcome)
 
         self.highlights.record(evaluated_event, move_name)
         self.events.append(evaluated_event)
-        self.store.append_match_event(player_id, evaluated_event.__dict__)
+        # Store counter_success alongside the event so build_player_profile can compute before/after.
+        self.store.append_match_event(player_id, {**evaluated_event.__dict__, "counter_success": counter_success})
 
         updated_events = self.store.get_match_events(player_id)
         profile_after = build_player_profile(updated_events)
@@ -139,7 +158,7 @@ class GameMasterAgent:
             boss_action=boss_action,
             next_strategy=adaptation,
             recap_prompt=recap_prompt,
-            counter_success=0.0,
+            counter_success=counter_success,
             survival_score=0.0,
             strategy_weights=strategy_weights,
             player_profile=profile_after,
