@@ -1,6 +1,9 @@
 # KiForge Arena
 
-Unity-first hackathon scaffold for a 2.5D anime boss fight controlled by gesture, pose, and fallback keyboard/mouse input.
+A real-time 2.5D anime boss fight controlled by full-body pose tracking, MYO EMG armband, and AI agents — built for the Fetch.ai / ASI:One hackathon.
+
+**Live agent (ASI:One):** https://asi1.ai/chat/a8e8512f-aac3-40ee-949b-4b7dbf310f3e
+**Agentverse address:** `agent1q0x73mhcy54lj0efh3eus5zxxqgkjkzascm8syy222c2ypx2zzkmy0gtez6`
 
 ## Current Architecture
 
