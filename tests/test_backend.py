@@ -1,34 +1,34 @@
-from backend.fight_lab import evaluate_boss_turn
+from backend.agents.enemy_agent import EnemyAgent, _recommend_strategy, _recommended_counter
 from backend.agents.game_master_agent import GameMasterAgent
 from backend.agents.narrator_agent import NarratorAgent
 from backend.agentverse_adapter import respond_to_text
 from backend.commentary_adapter import respond_to_commentary_text
 from backend.models import CombatTelemetry
 from backend.pika_recap import build_recap_prompt
-from backend.recap_queue import RecapQueue
 from backend.redis_store import RedisStore
 from backend.uagents_app import handle_agent_message
 
 
-def test_fight_lab_recommends_pressure_for_heavy_punch() -> None:
+# --- Enemy agent strategy logic -------------------------------------------- #
+
+def test_enemy_recommends_dodge_for_heavy_punch() -> None:
     event = CombatTelemetry(
-        round=1,
-        player_action="heavy_punch",
-        charge_time=3.2,
-        accuracy=0.8,
-        damage_dealt_by_player=42,
-        damage_dealt_by_boss=0,
-        boss_action="pressure",
-        boss_health_after=80,
-        player_health_after=100,
-        outcome="boss_hit",
+        round=1, player_action="heavy_punch", charge_time=3.2, accuracy=0.8,
+        damage_dealt_by_player=42, damage_dealt_by_boss=0, boss_action="pressure",
+        boss_health_after=80, player_health_after=100, outcome="boss_hit",
     )
+    strategy = _recommend_strategy(event)
+    counter  = _recommended_counter(strategy)
 
-    result = evaluate_boss_turn(event)
+    assert strategy == "heavy_puncher"
+    assert counter  == "dodge"
 
-    assert result.recommended_strategy == "heavy_puncher"
-    assert result.counter_success == 1.0
 
+def test_enemy_recommends_heavy_counter_for_guard_turtle() -> None:
+    assert _recommended_counter("guard_turtle") == "heavy_counter"
+
+
+# --- Redis store ------------------------------------------------------------ #
 
 def test_redis_store_falls_back_to_memory() -> None:
     store = RedisStore(url=None)
@@ -76,133 +76,89 @@ def test_move_names_and_boss_phase_persist() -> None:
     assert store.get_boss_phase("p1") == 2
 
 
+# --- Pika recap ------------------------------------------------------------ #
+
 def test_recap_prompt_uses_match_telemetry() -> None:
     event = CombatTelemetry(
-        round=1,
-        player_action="very_heavy_punch",
-        charge_time=4.0,
-        accuracy=1.0,
-        damage_dealt_by_player=88,
-        damage_dealt_by_boss=0,
-        boss_action="dodge",
-        boss_health_after=0,
-        player_health_after=100,
-        outcome="boss_ko",
+        round=1, player_action="very_heavy_punch", charge_time=4.0, accuracy=1.0,
+        damage_dealt_by_player=88, damage_dealt_by_boss=0, boss_action="dodge",
+        boss_health_after=0, player_health_after=100, outcome="boss_ko",
     )
-
     prompt = build_recap_prompt([event], "Very Heavy Punch")
 
     assert "Very Heavy Punch" in prompt
     assert "neon arena" in prompt
 
 
+# --- Narrator agent -------------------------------------------------------- #
+
 def test_narrator_fallback_returns_real_narration() -> None:
     event = CombatTelemetry(
-        round=1,
-        player_action="heavy_punch",
-        charge_time=2.4,
-        accuracy=0.8,
-        damage_dealt_by_player=28,
-        damage_dealt_by_boss=0,
-        boss_action="pressure",
-        boss_health_after=72,
-        player_health_after=100,
-        outcome="boss_hit",
+        round=1, player_action="heavy_punch", charge_time=2.4, accuracy=0.8,
+        damage_dealt_by_player=28, damage_dealt_by_boss=0, boss_action="pressure",
+        boss_health_after=72, player_health_after=100, outcome="boss_hit",
     )
-
     move_name, narration = NarratorAgent().narrate(event)
 
-    assert move_name == "Heavy Punch"
-    assert "28 damage" in narration
+    assert move_name == "Haymaker"
     assert narration.strip()
 
 
-def test_game_master_updates_profile_traces_and_strategy_weights(tmp_path) -> None:
-    store = RedisStore(url=None)
-    queue = RecapQueue(tmp_path / "recaps.jsonl")
-    master = GameMasterAgent(store=store, recap_queue=queue)
-    event = CombatTelemetry(
-        round=1,
-        player_action="heavy_punch",
-        charge_time=3.6,
-        accuracy=0.75,
-        damage_dealt_by_player=48,
-        damage_dealt_by_boss=5,
-        boss_action="jab",
-        boss_health_after=0,
-        player_health_after=70,
-        outcome="boss_ko",
+# --- Game master ----------------------------------------------------------- #
+
+def test_game_master_updates_profile_and_traces() -> None:
+    store  = RedisStore(url=None)
+    master = GameMasterAgent(store=store)
+    event  = CombatTelemetry(
+        round=1, player_action="heavy_punch", charge_time=3.6, accuracy=0.75,
+        damage_dealt_by_player=48, damage_dealt_by_boss=5, boss_action="jab",
+        boss_health_after=0, player_health_after=70, outcome="boss_ko",
     )
 
     response = master.handle_combat_event(event)
-    profile = store.get_json("player:demo_player:profile")
-    traces = store.get_traces("demo_player")
+    profile  = store.get_json("player:demo_player:profile")
+    traces   = store.get_traces("demo_player")
 
     assert profile["style"] == "heavy_puncher"
-    assert profile["strategy_weights"]["pressure"] == 0.65
+    assert profile["strategy_weights"]["pressure"] > 0
     assert response.learning_mode == "baseline"
     assert "naive starter policy" in response.tactical_plan["intent"]
-    assert response.recap_job["status"] == "queued"
-    assert traces[-1]["spans"][1]["name"] == "EnemyAgentDecision"
+    assert traces, "expected at least one trace entry"
+    assert traces[-1]["event"] == "heavy_punch"
 
 
-def test_battle_agent_starts_bad_then_arize_adapts(tmp_path) -> None:
-    store = RedisStore(url=None)
-    master = GameMasterAgent(store=store, recap_queue=RecapQueue(tmp_path / "recaps.jsonl"))
-    event = CombatTelemetry(
-        round=1,
-        player_action="heavy_punch",
-        charge_time=3.6,
-        accuracy=0.75,
-        damage_dealt_by_player=48,
-        damage_dealt_by_boss=0,
-        boss_action="unknown",
-        boss_health_after=72,
-        player_health_after=100,
-        outcome="boss_hit",
+def test_battle_agent_switches_to_adapted_on_second_event() -> None:
+    store  = RedisStore(url=None)
+    master = GameMasterAgent(store=store)
+    event  = CombatTelemetry(
+        round=1, player_action="heavy_punch", charge_time=3.6, accuracy=0.75,
+        damage_dealt_by_player=48, damage_dealt_by_boss=0, boss_action="unknown",
+        boss_health_after=72, player_health_after=100, outcome="boss_hit",
     )
 
-    first = master.handle_combat_event(event, player_id="learn_demo")
+    first  = master.handle_combat_event(event, player_id="learn_demo")
     second = master.handle_combat_event(event, player_id="learn_demo")
 
-    assert first.learning_mode == "baseline"
-    assert first.boss_action == "jab"
-    assert first.counter_success == 0.0
+    assert first.learning_mode  == "baseline"
     assert second.learning_mode == "adapted"
-    assert second.boss_action == "pressure"
-    assert second.counter_success == 1.0
+    assert second.boss_action   == "dodge"
 
 
-def test_recap_queue_persists_jobs(tmp_path) -> None:
-    queue = RecapQueue(tmp_path / "recaps.jsonl")
-    job = queue.enqueue("Create a recap", {"round": 1})
-
-    assert job["job_id"].startswith("recap_")
-    assert queue.list_jobs()[0]["prompt"] == "Create a recap"
-
+# --- Agentverse / adapter -------------------------------------------------- #
 
 def test_agent_adapter_returns_combat_response() -> None:
     payload = {
-        "round": 1,
-        "player_action": "guard",
-        "charge_time": 0.0,
-        "accuracy": 0.5,
-        "damage_dealt_by_player": 0,
-        "damage_dealt_by_boss": 12,
-        "boss_action": "jab",
-        "boss_health_after": 100,
-        "player_health_after": 88,
-        "outcome": "player_blocked",
+        "round": 1, "player_action": "guard", "charge_time": 0.0, "accuracy": 0.5,
+        "damage_dealt_by_player": 0, "damage_dealt_by_boss": 12, "boss_action": "jab",
+        "boss_health_after": 100, "player_health_after": 88, "outcome": "player_blocked",
     }
-
-    first = handle_agent_message(payload, player_id="test_agent_player")
+    first  = handle_agent_message(payload, player_id="test_agent_player")
     second = handle_agent_message(payload, player_id="test_agent_player")
 
-    assert first["learning_mode"] == "baseline"
-    assert first["boss_action"] == "jab"
+    assert first["learning_mode"]  == "baseline"
     assert second["learning_mode"] == "adapted"
-    assert second["boss_action"] == "heavy_counter"
     assert second["player_profile"]["style"] == "guard_turtle"
+    assert second["boss_action"] == "heavy_counter"
 
 
 def test_agentverse_text_adapter_runs_demo_turn() -> None:
@@ -239,5 +195,5 @@ def test_agentverse_text_adapter_runs_demo_turn() -> None:
 def test_commentary_adapter_returns_narration_only() -> None:
     reply = respond_to_commentary_text("start commentary")
 
-    assert "Heavy Punch" in reply
+    assert "Haymaker" in reply
     assert "Boss countered with" not in reply

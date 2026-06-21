@@ -42,9 +42,9 @@ class GameMasterAgent:
 
     def handle_combat_event(self, event: CombatTelemetry, player_id: str = "demo_player") -> AgentResponse:
         existing_events = self.store.get_match_events(player_id)
-        existing_evals = self.store.get_json_list(f"player:{player_id}:evals")
-        profile_before = build_player_profile(existing_events, existing_evals)
-        learning_enabled = bool(existing_evals)
+        profile_before = build_player_profile(existing_events)
+        # Adapted mode kicks in once we have at least one prior event from this player.
+        learning_enabled = len(existing_events) > 0
         learning_mode = "adapted" if learning_enabled else "baseline"
 
         boss_action, strategy = self.enemy.choose_response(event, profile_before, learning_enabled=learning_enabled)

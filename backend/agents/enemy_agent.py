@@ -1,18 +1,45 @@
 from __future__ import annotations
 
-from backend.fight_lab import recommended_counter, recommend_strategy
 from backend.models import CombatTelemetry
+
+# Maps player style → boss counter action (replaces the removed fight_lab module).
+_COUNTER_MAP: dict[str, str] = {
+    "heavy_puncher":   "dodge",
+    "guard_turtle":    "heavy_counter",
+    "combo_puncher":   "pressure",
+    "aggressive":      "dodge",
+    "patient_charger": "pressure",
+    "balanced":        "pressure",
+}
+
+# Maps player action → player style label.
+_ACTION_STYLE: dict[str, str] = {
+    "heavy_punch":      "heavy_puncher",
+    "very_heavy_punch": "heavy_puncher",
+    "guard":            "guard_turtle",
+    "left_punch":       "combo_puncher",
+    "right_punch":      "combo_puncher",
+    "punch_combo":      "combo_puncher",
+}
+
+
+def _recommend_strategy(event: CombatTelemetry) -> str:
+    return _ACTION_STYLE.get(event.player_action, "balanced")
+
+
+def _recommended_counter(strategy: str) -> str:
+    return _COUNTER_MAP.get(strategy, "pressure")
 
 
 class EnemyAgent:
     def choose_response(self, event: CombatTelemetry, profile: dict | None = None, learning_enabled: bool = True) -> tuple[str, str]:
-        event_strategy = recommend_strategy(event)
+        event_strategy = _recommend_strategy(event)
         strategy = event_strategy
         if event_strategy == "balanced" and profile:
             strategy = str(profile.get("style", "balanced"))
         if not learning_enabled:
             return self._bad_first_guess(event), strategy
-        return recommended_counter(strategy), strategy
+        return _recommended_counter(strategy), strategy
 
     @staticmethod
     def _bad_first_guess(event: CombatTelemetry) -> str:
