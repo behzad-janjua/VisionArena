@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from backend.models import CombatTelemetry
 
-# Maps player style → boss counter action (replaces the removed fight_lab module).
+# Maps player style → boss counter action. Must stay in sync with fight_lab.recommended_counter.
+# heavy_puncher → pressure (interrupt the windup before it lands)
+# guard_turtle  → heavy_counter (bait the guard, then punish it)
+# combo_puncher → dodge (slip the string, then jab back)
 _COUNTER_MAP: dict[str, str] = {
-    "heavy_puncher":   "dodge",
+    "heavy_puncher":   "pressure",
     "guard_turtle":    "heavy_counter",
-    "combo_puncher":   "pressure",
-    "aggressive":      "dodge",
-    "patient_charger": "pressure",
-    "balanced":        "pressure",
+    "combo_puncher":   "dodge",
+    "aggressive":      "pressure",
+    "patient_charger": "dodge",
+    "balanced":        "jab",
 }
 
 # Maps player action → player style label.

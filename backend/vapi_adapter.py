@@ -31,7 +31,7 @@ def trigger_boss_call(phone: str, player_id: str, store: RedisStore) -> dict[str
             "firstMessage": "I know exactly how you fight. This won't take long." if memory_context else "You called the wrong number. Or maybe the right one.",
             "model": {
                 "provider": "anthropic",
-                "model": "claude-haiku-4-5-20251001",
+                "model": "claude-3-5-haiku-20241022",
                 "systemPrompt": boss_call_system_prompt(memory_context),
                 "temperature": 0.9,
                 "maxTokens": 300,
@@ -68,7 +68,26 @@ def trigger_boss_call(phone: str, player_id: str, store: RedisStore) -> dict[str
 
 def get_call_status(call_id: str, store: RedisStore) -> dict[str, Any]:
     record = store.get_json(f"vapi:call:{call_id}") or {}
-    return {"call_id": call_id, "status": record.get("status", "unknown")}
+    cached_status = record.get("status", "unknown")
+
+    # Webhook can't fire on localhost, so poll Vapi directly as fallback.
+    if cached_status not in ("ended", "mock") and os.getenv("VAPI_API_KEY"):
+        try:
+            resp = http.get(
+                f"{_VAPI_BASE}/call/{call_id}",
+                headers={"Authorization": f"Bearer {os.getenv('VAPI_API_KEY')}"},
+                timeout=5,
+            )
+            if resp.ok:
+                vapi_status = resp.json().get("status", "")
+                if vapi_status in ("ended", "forwarding-ended", "no-answer", "busy", "failed"):
+                    record.update({"status": "ended"})
+                    store.set_json(f"vapi:call:{call_id}", record)
+                    return {"call_id": call_id, "status": "ended"}
+        except Exception as exc:
+            log.debug("[Vapi] status poll fallback failed: %s", exc)
+
+    return {"call_id": call_id, "status": cached_status}
 
 
 def process_webhook(payload: dict[str, Any], store: RedisStore) -> None:

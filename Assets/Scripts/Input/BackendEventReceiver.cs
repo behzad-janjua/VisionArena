@@ -84,7 +84,7 @@ namespace KiForge.Input
 
         private async Task ReceiveLoopAsync()
         {
-            var buffer = new byte[8192];
+            var buffer = new byte[65536];
             var sb = new StringBuilder();
 
             while (socket.State == WebSocketState.Open && !cts.IsCancellationRequested)
@@ -168,7 +168,8 @@ namespace KiForge.Input
                             nextStrategy  = msg.NextStrategy,
                             recapPrompt   = msg.RecapPrompt,
                             counterSuccess = msg.CounterSuccess,
-                            survivalScore  = msg.SurvivalScore
+                            survivalScore  = msg.SurvivalScore,
+                            audioB64      = msg.AudioB64,
                         });
                         break;
                     default:
@@ -274,6 +275,7 @@ namespace KiForge.Input
             public string recap_prompt;
             public float counter_success;
             public float survival_score;
+            public string audio_b64;
         }
 
         [Serializable]
@@ -300,6 +302,7 @@ namespace KiForge.Input
             public string RecapPrompt   => payload?.recap_prompt   ?? string.Empty;
             public float CounterSuccess => payload?.counter_success ?? 0f;
             public float SurvivalScore  => payload?.survival_score  ?? 0f;
+            public string AudioB64      => payload?.audio_b64       ?? string.Empty;
 
             public Vector2 GetOrigin() => ToVec(payload?.origin, Vector2.zero);
             public Vector2 GetAim() => ToVec(payload?.aim, Vector2.right);

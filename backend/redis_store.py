@@ -13,7 +13,38 @@ _VEC_PREFIX = f"{_NS}:vss:"
 _VEC_REGISTRY = f"{_NS}:vec:index"
 _MATCH_STREAM = f"{_NS}:match:stream"
 _NARRATION_CHANNEL = f"{_NS}:narration"
+_LEADERBOARD_KEY = f"{_NS}:leaderboard"
+_GHOST_SEED_FLAG = f"{_NS}:ghosts_seeded"
 _STYLE_VECTOR_DIM = 5
+
+# Pre-computed style fingerprints for KNN recall to work from the first match.
+# Vector layout: [heavy_punch_rate, guard_rate, combo_punch_rate, very_heavy_norm, avg_charge_norm]
+_GHOST_PLAYERS = [
+    {
+        "player_id": "ghost_heavy_puncher",
+        "vector": [0.70, 0.10, 0.10, 0.67, 0.60],
+        "style": "heavy_puncher",
+        "counter_success": 0.31,
+        "strategy_weights": {"pressure": 0.65, "dodge": 0.20, "jab": 0.05, "guard": 0.10, "heavy_counter": 0.0},
+        "leaderboard_score": 220.0,
+    },
+    {
+        "player_id": "ghost_guard_turtle",
+        "vector": [0.10, 0.70, 0.10, 0.0, 0.10],
+        "style": "guard_turtle",
+        "counter_success": 0.28,
+        "strategy_weights": {"pressure": 0.20, "dodge": 0.15, "jab": 0.10, "guard": 0.0, "heavy_counter": 0.55},
+        "leaderboard_score": 145.0,
+    },
+    {
+        "player_id": "ghost_combo_puncher",
+        "vector": [0.10, 0.10, 0.70, 0.0, 0.08],
+        "style": "combo_puncher",
+        "counter_success": 0.35,
+        "strategy_weights": {"pressure": 0.15, "dodge": 0.45, "jab": 0.30, "guard": 0.10, "heavy_counter": 0.0},
+        "leaderboard_score": 310.0,
+    },
+]
 
 
 class RedisStore:
@@ -33,6 +64,7 @@ class RedisStore:
         self._mem_cooldowns: dict[str, float] = {}
         self._mem_stream: list[dict[str, Any]] = []
         self._mem_vectors: dict[str, dict[str, Any]] = {}
+        self._mem_leaderboard: dict[str, float] = {}
         self._client = None
         self._vector_search = False
 
@@ -83,7 +115,12 @@ class RedisStore:
 
     def append_match_event(self, player_id: str, event: dict[str, Any]) -> None:
         key = f"player:{player_id}:match_events"
-        self.append_json(key, event)
+        if self._client is None:
+            self._memory.setdefault(key, []).append(event)
+            return
+        self._client.rpush(key, json.dumps(event))
+        # Keep only the last 100 events so stale rounds from old sessions don't skew the profile.
+        self._client.ltrim(key, -100, -1)
 
     def append_json(self, key: str, value: dict[str, Any]) -> None:
         if self._client is None:
@@ -197,6 +234,61 @@ class RedisStore:
             self._client.publish(channel, json.dumps(message))
         except Exception:
             pass
+
+    # ------------------------------------------------------------------ #
+    # Match lifecycle
+    # ------------------------------------------------------------------ #
+    def clear_match_events(self, player_id: str) -> None:
+        """Delete the raw event list so the next match starts with a clean profile."""
+        key = f"player:{player_id}:match_events"
+        if self._client is None:
+            self._memory.pop(key, None)
+            return
+        self._client.delete(key)
+
+    # ------------------------------------------------------------------ #
+    # Sorted Set leaderboard (ZADD / ZREVRANGE)
+    # ------------------------------------------------------------------ #
+    def update_leaderboard(self, player_id: str, score_delta: float) -> None:
+        if score_delta <= 0:
+            return
+        if self._client is None:
+            self._mem_leaderboard[player_id] = self._mem_leaderboard.get(player_id, 0.0) + score_delta
+            return
+        self._client.zincrby(_LEADERBOARD_KEY, score_delta, player_id)
+
+    def get_leaderboard(self, limit: int = 10) -> list[dict[str, Any]]:
+        if self._client is None:
+            ranked = sorted(self._mem_leaderboard.items(), key=lambda x: x[1], reverse=True)
+            return [{"player_id": pid, "score": round(score, 1)} for pid, score in ranked[:limit]]
+        entries = self._client.zrevrange(_LEADERBOARD_KEY, 0, limit - 1, withscores=True)
+        return [{"player_id": pid, "score": round(score, 1)} for pid, score in entries]
+
+    # ------------------------------------------------------------------ #
+    # Ghost player seeding — makes KNN recall return results from round 1
+    # ------------------------------------------------------------------ #
+    def seed_ghost_players(self) -> None:
+        """Seed pre-computed ghost players once so vector similarity recall is non-empty."""
+        if self._client is not None:
+            if self._client.exists(_GHOST_SEED_FLAG):
+                return
+            self._client.set(_GHOST_SEED_FLAG, "1", ex=86400)
+        elif _GHOST_SEED_FLAG in self._memory:
+            return
+        else:
+            self._memory[_GHOST_SEED_FLAG] = "1"
+
+        for ghost in _GHOST_PLAYERS:
+            self.index_player_vector(
+                ghost["player_id"],
+                ghost["vector"],
+                {
+                    "style": ghost["style"],
+                    "counter_success": ghost["counter_success"],
+                    "strategy_weights": ghost["strategy_weights"],
+                },
+            )
+            self.update_leaderboard(ghost["player_id"], ghost["leaderboard_score"])
 
     # ------------------------------------------------------------------ #
     # Vector similarity: the boss's associative memory

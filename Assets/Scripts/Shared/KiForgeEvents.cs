@@ -128,5 +128,6 @@ namespace KiForge.Shared
         public string recapPrompt;
         public float counterSuccess;
         public float survivalScore;
+        public string audioB64;
     }
 }

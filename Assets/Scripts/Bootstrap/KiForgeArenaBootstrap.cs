@@ -29,7 +29,10 @@ namespace KiForge.Bootstrap
         private void InitArena()
         {
             // Y = 0.054 plants the fighters' feet on the GrassField (top at Y = 0).
-            var player = SpawnFighterModel("Player", new Vector3(-2.2f, 0.054f, 0f), new Color(0.55f, 0.27f, 0.07f, 1f));
+            var player = SpawnFighterModel("Player", new Vector3(-2.2f, 0.054f, 0f), Color.white,
+                editorModelPath: "Assets/Art/Characters/character-2.fbx",
+                resourcesName:   "character-2",
+                applyTint:       false);
             var boss   = SpawnFighterModel("Boss",   new Vector3( 2.2f, 0.054f, 0f), Color.white,
                 editorModelPath: "Assets/Art/Characters/character.fbx",
                 resourcesName:   "character",
@@ -175,6 +178,10 @@ namespace KiForge.Bootstrap
                 // --- Caption bar: scrolling commentator log at the bottom (persists) ---
                 var captions = new GameObject("CaptionBarUI").AddComponent<CaptionBarUI>();
                 captions.Setup(eventBus);
+
+                // --- Commentator TTS: plays Deepgram audio attached to AGENT_RESPONSE ---
+                var commentatorAudio = new GameObject("CommentatorAudio").AddComponent<CommentatorAudioPlayer>();
+                commentatorAudio.Setup(eventBus);
 
                 // --- Damage numbers: static red labels below each health bar ---
                 var dmgNumbers = new GameObject("DamageNumberUI").AddComponent<DamageNumberUI>();

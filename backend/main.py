@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 from dotenv import load_dotenv
 load_dotenv()
 from contextlib import asynccontextmanager
@@ -71,6 +73,7 @@ class AgentChatRequest(BaseModel):
 class AgentChatResponse(BaseModel):
     reply: str
     player_id: str
+    audio_b64: str | None = None
 
 
 def _handle_agent_payload(payload: dict[str, Any], player_id: str) -> dict[str, Any]:
@@ -90,18 +93,49 @@ async def _vision_task() -> None:
         _manager.broadcast(event.to_dict())
 
 
+async def _narration_pubsub_task() -> None:
+    """Background task: subscribes to the Redis narration channel and broadcasts to Unity.
+
+    This makes Pub/Sub the actual real-time pipe for narration rather than dead code.
+    Falls back silently when Redis isn't configured.
+    """
+    url = _game_master.store.url
+    if not url:
+        return
+    try:
+        import redis.asyncio as aioredis
+        client = aioredis.from_url(url, decode_responses=True)
+        pubsub = client.pubsub()
+        await pubsub.subscribe("arena:narration")
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                try:
+                    data = json.loads(message["data"])
+                    _manager.broadcast({"type": "NARRATION", **data})
+                except Exception:
+                    pass
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        log.warning("[PubSub] narration subscriber error: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_tracing()
-    task = asyncio.create_task(_vision_task())
+    _game_master.store.seed_ghost_players()
+    vision_task = asyncio.create_task(_vision_task())
+    pubsub_task = asyncio.create_task(_narration_pubsub_task())
     try:
         yield
     finally:
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        vision_task.cancel()
+        pubsub_task.cancel()
+        for t in (vision_task, pubsub_task):
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(title="KiForge Arena Backend", lifespan=lifespan)
@@ -184,6 +218,22 @@ def demo_stream(count: int = 20) -> dict[str, Any]:
     return {"match_stream": _game_master.store.stream_recent(count=count)}
 
 
+@app.get("/demo/leaderboard")
+def demo_leaderboard(limit: int = 10) -> dict[str, Any]:
+    """Sorted Set leaderboard: players ranked by total damage dealt across all sessions."""
+    return {
+        "leaderboard": _game_master.store.get_leaderboard(limit=limit),
+        "backend": _game_master.store.backend_label,
+    }
+
+
+@app.post("/demo/reset")
+def demo_reset(player_id: str = "demo_player") -> dict[str, str]:
+    """Clear match events and highlights so a new match starts with a clean slate."""
+    _game_master.reset_match(player_id)
+    return {"status": "reset", "player_id": player_id}
+
+
 @app.get("/demo/recap")
 def demo_recap() -> dict[str, Any]:
     state = _game_master.demo_state()
@@ -215,8 +265,13 @@ def agent_chat(payload: AgentChatRequest) -> AgentChatResponse:
 @app.post("/agent/commentary", response_model=AgentChatResponse)
 def agent_commentary(payload: AgentChatRequest) -> AgentChatResponse:
     """Agentverse chat route for the Commentator Agent: move name + narration only."""
+    from backend.deepgram_tts import synthesize_b64
     reply = respond_to_commentary_text(payload.message)
-    return AgentChatResponse(reply=reply, player_id=payload.player_id)
+    # reply is "move_name\nnarration" — speak only the narration line
+    narration = reply.split("\n", 1)[-1].strip()
+    voice = os.getenv("DEEPGRAM_COMMENTATOR_VOICE", "aura-orion-en")
+    audio_b64 = synthesize_b64(narration, voice) if narration else None
+    return AgentChatResponse(reply=reply, player_id=payload.player_id, audio_b64=audio_b64)
 
 
 @app.get("/agent/state")
@@ -296,7 +351,14 @@ async def unity_socket(websocket: WebSocket) -> None:
             if event.type == EventType.COMBAT_TELEMETRY.value:
                 telemetry = CombatTelemetry(**event.payload)
                 response = _game_master.handle_combat_event(telemetry)
-                await q.put(response.to_event().to_dict())
+                event_dict = response.to_event().to_dict()
+                if response.narration:
+                    from backend.deepgram_tts import synthesize_b64
+                    voice = os.getenv("DEEPGRAM_COMMENTATOR_VOICE", "aura-orion-en")
+                    audio_b64 = await asyncio.to_thread(synthesize_b64, response.narration, voice)
+                    if audio_b64:
+                        event_dict["payload"]["audio_b64"] = audio_b64
+                await q.put(event_dict)
             elif event.type in _MYO_EVENT_TYPES:
                 # MYO bridge sends here — forward to all Unity clients
                 _manager.broadcast(raw)

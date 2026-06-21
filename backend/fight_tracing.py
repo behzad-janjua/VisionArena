@@ -15,6 +15,8 @@ import os
 import time
 from typing import TYPE_CHECKING, Any
 
+from backend.fight_lab import evaluate_boss_turn
+
 if TYPE_CHECKING:
     from backend.models import AgentResponse, CombatTelemetry
 
@@ -69,6 +71,8 @@ def record_combat_span(
     player_id: str,
 ) -> dict[str, Any]:
     """Emit an OTel span for one combat round and return a dict for Redis storage."""
+    lab = evaluate_boss_turn(event)
+
     trace_dict: dict[str, Any] = {
         "ts": time.time(),
         "player_id": player_id,
@@ -84,6 +88,16 @@ def record_combat_span(
         "learning_mode": response.learning_mode,
         "arize_active": _active,
         "trace_id": "",
+        # Fight Lab multi-metric evals — stored in Redis even without Arize.
+        "eval": {
+            "damage_efficiency": round(lab.damage_efficiency, 3),
+            "counter_success_policy": round(lab.counter_success, 3),
+            "survival_score": round(lab.survival_score, 3),
+            "variety_score": round(lab.variety_score, 3),
+            "fun_score": round(lab.fun_score, 3),
+            "commentary_accuracy": round(lab.commentary_accuracy, 3),
+            "recommended_strategy": lab.recommended_strategy,
+        },
     }
 
     if _tracer is None:
@@ -109,6 +123,14 @@ def record_combat_span(
         after  = (response.player_profile or {}).get("boss_counter_success_after",  0.0)
         span.set_attribute("eval.counter_success_before", round(float(before), 3))
         span.set_attribute("eval.counter_success_after",  round(float(after),  3))
+        # Fight Lab multi-metric evals on the Arize span.
+        span.set_attribute("eval.damage_efficiency",        round(lab.damage_efficiency, 3))
+        span.set_attribute("eval.counter_success_policy",   round(lab.counter_success, 3))
+        span.set_attribute("eval.survival_score",           round(lab.survival_score, 3))
+        span.set_attribute("eval.variety_score",            round(lab.variety_score, 3))
+        span.set_attribute("eval.fun_score",                round(lab.fun_score, 3))
+        span.set_attribute("eval.commentary_accuracy",      round(lab.commentary_accuracy, 3))
+        span.set_attribute("eval.recommended_strategy",     lab.recommended_strategy)
 
         from opentelemetry import trace as otel_trace  # type: ignore[import-untyped]
         ctx = otel_trace.get_current_span().get_span_context()

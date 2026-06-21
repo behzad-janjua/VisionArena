@@ -85,9 +85,11 @@ class GameMasterAgent:
         recap_prompt = build_cinematic_prompt(self.highlights)
         recap_job: dict = {}
 
-        # Reset highlights on KO so the next match starts clean.
+        # Reset highlights and raw events on KO so the next match starts clean.
+        # Profile is already saved above, so clearing events only affects future rounds.
         if event.outcome in {"boss_ko", "player_ko", "match_end"} or event.boss_health_after <= 0:
             self.highlights = FightHighlights()
+            self.store.clear_match_events(player_id)
 
         # --- Redis associative memory: recall the most similar past player so the
         # boss can reuse the strategy that worked against them, then index this one.
@@ -98,6 +100,7 @@ class GameMasterAgent:
             profile_vector,
             {
                 "style": profile_after.get("style", "balanced"),
+                "counter_success": profile_after.get("boss_counter_success_after", 0.0),
                 "strategy_weights": strategy_weights,
             },
         )
@@ -134,6 +137,7 @@ class GameMasterAgent:
                 "boss_phase": boss_phase,
             }
         )
+        self.store.update_leaderboard(player_id, float(event.damage_dealt_by_player))
         self.store.publish({"player_id": player_id, "move_name": move_name, "narration": narration})
 
         self.store.set_json(
@@ -168,11 +172,15 @@ class GameMasterAgent:
             recap_job=recap_job,
         )
 
-        trace_dict = record_combat_span(event, response, player_id)
+        trace_dict = record_combat_span(evaluated_event, response, player_id)
         self.store.append_trace(player_id, trace_dict)
 
         self.latest_response = response
         return response
+
+    def reset_match(self, player_id: str = "demo_player") -> None:
+        self.store.clear_match_events(player_id)
+        self.highlights = FightHighlights()
 
     def demo_state(self, player_id: str = "demo_player") -> dict:
         profile = self.store.get_json(f"player:{player_id}:profile")
