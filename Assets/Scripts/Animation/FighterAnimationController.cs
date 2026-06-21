@@ -43,6 +43,12 @@ namespace KiForge.Animation
         /// <summary>The attack carried by the most recent <see cref="Impact"/> event.</summary>
         public AttackType LastAttack { get; private set; }
 
+        /// <summary>
+        /// +1 when the opponent is to the right (fighter faces +X), else -1. Lets callers
+        /// tell forward movement (toward the opponent) from backward movement (away from it).
+        /// </summary>
+        public float ForwardSign => (opponent == null || opponent.position.x > transform.position.x) ? 1f : -1f;
+
         public void SetHome(Vector3 pos)
         {
             homePosition = pos;
@@ -193,6 +199,11 @@ namespace KiForge.Animation
                 StopLocomotion();
                 return;
             }
+
+            // Keep facing the opponent while walking. Without this the model's rotation
+            // goes stale after the fighters cross, so a forward-walk clip plays while the
+            // body faces the wrong way and reads as a backward walk (and vice versa).
+            FaceOpponent();
 
             var facingRight = opponent == null || opponent.position.x > transform.position.x;
             var forwardSign = facingRight ? 1f : -1f;

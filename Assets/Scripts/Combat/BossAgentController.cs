@@ -168,6 +168,7 @@ namespace KiForge.Combat
 
             if (Mathf.Abs(h) < 0.01f)
             {
+                fighter.StopLocomotion();
                 return;
             }
 
@@ -175,6 +176,7 @@ namespace KiForge.Combat
             var newPos = new Vector3(newX, groundY, transform.position.z);
             fighter.SetHome(newPos);
             transform.position = newPos;
+            fighter.SetLocomotion(h);
         }
     }
 }

@@ -2,6 +2,7 @@ using KiForge.Animation;
 using KiForge.Combat;
 using KiForge.Input;
 using KiForge.Scene;
+using KiForge.Shared;
 using KiForge.Telemetry;
 using KiForge.UI;
 using UnityEngine;
@@ -11,6 +12,10 @@ namespace KiForge.Bootstrap
     public sealed class KiForgeArenaBootstrap : MonoBehaviour
     {
         private const int MaxHealth = AttackTuning.MaxHealth; // 120 -> 12 plain punches to KO
+
+        // Max horizontal gap (world units) at which a swing actually connects. Beyond
+        // this the attack whiffs, so fighters must close the distance to deal damage.
+        private const float HitRange = 2.4f;
 
         private void Awake()
         {
@@ -44,7 +49,19 @@ namespace KiForge.Bootstrap
                 playerInput.Initialize(playerFighter, myo);
 
                 var playerWalk = player.AddComponent<PlayerWalkController>();
-                playerWalk.Initialize(3.0f, -4.5f, 4.5f, arrowKeys: false); // WASD
+                playerWalk.Initialize(1.3f, -4.5f, 4.5f, arrowKeys: false); // WASD (forward speed; backward = 0.55x)
+
+                // --- Computer vision: webcam body tracking via the backend WebSocket ---
+                // BackendEventReceiver connects to the FastAPI/MediaPipe pose stream and
+                // republishes POSE_UPDATE frames on the bus; CvAimController turns body
+                // center into movement and wrist into an aim reticle. Falls back to the
+                // keyboard PlayerWalkController whenever CV frames stop arriving.
+                var eventBus = new KiForgeEventBus();
+                var backend = new GameObject("BackendEventReceiver").AddComponent<BackendEventReceiver>();
+                backend.Initialize(eventBus);
+
+                var cvAim = player.AddComponent<CvAimController>();
+                cvAim.Initialize(eventBus, player.transform, playerFighter, playerWalk, -4.5f, 4.5f);
 
                 // --- Arize coach feedback loop (player improvement) ---
                 var coach = new GameObject("ArizeCoach").AddComponent<ArizeCoachFeedback>();
@@ -61,6 +78,8 @@ namespace KiForge.Bootstrap
                 playerFighter.Impact += (src, tgt) =>
                 {
                     if (bossHealth.IsDefeated) return;
+                    Debug.Log($"[HitRange] player swing gap = {Mathf.Abs(player.transform.position.x - boss.transform.position.x):0.00}");
+                    if (!InHitRange(player.transform, boss.transform)) return; // whiff if too far
                     var blocked = bossFighter.IsBlocking;
                     var dmg = ResolveDamage(playerFighter.LastAttack, blocked);
                     bossHealth.ApplyDamage(dmg);
@@ -71,6 +90,7 @@ namespace KiForge.Bootstrap
                 bossFighter.Impact += (src, tgt) =>
                 {
                     if (playerHealth.IsDefeated) return;
+                    if (!InHitRange(player.transform, boss.transform)) return; // whiff if too far
                     var blocked = playerFighter.IsBlocking;
                     var dmg = ResolveDamage(bossFighter.LastAttack, blocked);
                     playerHealth.ApplyDamage(dmg);
@@ -81,6 +101,11 @@ namespace KiForge.Bootstrap
                 var hud = new GameObject("HUD").AddComponent<HealthBarUI>();
                 hud.Setup(playerHealth, bossHealth);
             }
+        }
+
+        private static bool InHitRange(Transform a, Transform b)
+        {
+            return Mathf.Abs(a.position.x - b.position.x) <= HitRange;
         }
 
         private static int ResolveDamage(AttackType type, bool blocked)

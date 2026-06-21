@@ -30,13 +30,18 @@ namespace KiForge.Combat
             if (fighter == null || fighter.IsAttacking || playerTransform == null) return;
 
             float dist = Mathf.Abs(transform.position.x - playerTransform.position.x);
-            if (dist <= attackRange) return;
+            if (dist <= attackRange)
+            {
+                fighter.StopLocomotion();
+                return;
+            }
 
             float dir  = Mathf.Sign(playerTransform.position.x - transform.position.x);
             float newX = Mathf.Clamp(transform.position.x + dir * walkSpeed * Time.deltaTime, leftBound, rightBound);
             var   newPos = new Vector3(newX, groundY, transform.position.z);
             fighter.SetHome(newPos);
             transform.position = newPos;
+            fighter.SetLocomotion(dir);
         }
     }
 }

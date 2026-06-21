@@ -29,7 +29,8 @@ _MOCK_SEQUENCE = [
      "aim": {"x": 0.90, "y": -0.08}, "confidence": 1.0},
 ]
 
-_TARGET_FPS = 30
+_TARGET_FPS = int(os.getenv("CV_TARGET_FPS", "30") or 30)
+_CAMERA_INDEX = int(os.getenv("CV_CAMERA_INDEX", "0") or 0)
 
 
 def _make_event(payload: dict) -> NormalizedEvent:
@@ -84,9 +85,9 @@ def _extract_payload(result) -> dict | None:
 
 def _blocking_init(PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions):
     import cv2
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(_CAMERA_INDEX)
     if not cap.isOpened():
-        raise RuntimeError("Camera index 0 not available")
+        raise RuntimeError(f"Camera index {_CAMERA_INDEX} not available")
 
     # Warm up and verify we can actually read (triggers macOS permission check)
     for _ in range(10):
