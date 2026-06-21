@@ -185,6 +185,30 @@ def _event_fields(event: Any) -> dict[str, Any]:
     }
 
 
+# --------------------------------------------------------------------------- #
+# Boss phone call — Vapi outbound call system prompt.
+# Intentionally short: the demo is 3 minutes total.
+# --------------------------------------------------------------------------- #
+
+_BOSS_CALL_SYSTEM = (
+    "You are the Boss in KiForge Arena — cold, menacing, economical with words. "
+    "You called the player before the fight to get inside their head.\n\n"
+    "Rules:\n"
+    "- The ENTIRE call must end in under 60 seconds. Be very brief.\n"
+    "- Two or three short lines only, then end the call.\n"
+    "- You may ask ONE question. Dismiss their answer immediately.\n"
+    "- Never mention AI, code, APIs, or anything outside the fight.\n"
+    "- If player history is provided below, reference it like you already knew.\n"
+    "- ALWAYS end the call by saying exactly: 'See you in the arena.' Nothing after.\n\n"
+    "Player history: {memory_context}"
+)
+
+
+def boss_call_system_prompt(memory_context: str = "") -> str:
+    ctx = memory_context if memory_context else "No history — new challenger."
+    return _BOSS_CALL_SYSTEM.format(memory_context=ctx)
+
+
 def parse_json_reply(raw: str | None) -> dict[str, Any] | None:
     """Best-effort parse of an LLM JSON reply, tolerating stray code fences."""
     if not raw:

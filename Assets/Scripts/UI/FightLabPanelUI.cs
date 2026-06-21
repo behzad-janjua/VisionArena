@@ -200,7 +200,8 @@ namespace KiForge.UI
             // Title bar strip
             var titleGO = MakeChild(panel.transform, "TitleBar", 0f, 420f, 780f, 40f);
             titleGO.AddComponent<Image>().color = new Color(0f, 0.55f, 1f, 0.85f);
-            var titleLbl = AddText(titleGO, 18, FontStyle.Bold, TextAnchor.MiddleCenter);
+            var titleLblGO = MakeChild(titleGO.transform, "TitleLabel", 0f, 0f, 780f, 40f);
+            var titleLbl = AddText(titleLblGO, 18, FontStyle.Bold, TextAnchor.MiddleCenter);
             titleLbl.text  = "AI FIGHT LAB  [Tab to close]";
             titleLbl.color = Color.white;
 

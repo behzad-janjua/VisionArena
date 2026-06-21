@@ -25,6 +25,7 @@ namespace KiForge.UI
         private KiForgeEventBus eventBus;
         private Text[] lineTexts;
         private CanvasGroup group;
+        private Image bgImage;
 
         // Colours for lines, oldest → newest
         private static readonly Color[] LineColors =
@@ -63,6 +64,7 @@ namespace KiForge.UI
             lines.Enqueue(line);
             if (lines.Count > MaxLines) lines.Dequeue();
 
+            if (bgImage != null) bgImage.enabled = true;
             RefreshText();
         }
 
@@ -120,8 +122,9 @@ namespace KiForge.UI
             bgRT.anchorMin = Vector2.zero;
             bgRT.anchorMax = Vector2.one;
             bgRT.offsetMin = bgRT.offsetMax = Vector2.zero;
-            var bgImg = bg.AddComponent<Image>();
-            bgImg.color = new Color(0f, 0f, 0f, 0.62f);
+            bgImage = bg.AddComponent<Image>();
+            bgImage.color = new Color(0f, 0f, 0f, 0.62f);
+            bgImage.enabled = false;  // hidden until first narration arrives
 
             // Lines
             lineTexts = new Text[MaxLines];

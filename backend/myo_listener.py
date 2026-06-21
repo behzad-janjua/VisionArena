@@ -8,11 +8,8 @@ because separating the two sensors prevents the accuracy collapse that happens w
 a single sensor must classify both gesture type and continuous body position at once.
 
 MYO pose -> game event mapping
-  fist (held)       -> CHARGE_START, then CHARGE_UPDATE every tick, HEAVY_PUNCH_RELEASE on open
-  wave_out          -> RIGHT_PUNCH
-  wave_in           -> LEFT_PUNCH
+  fist -> rest      -> HEAVY_PUNCH_RELEASE (fires immediately on fist release)
   fingers_spread    -> GUARD_START (held) / GUARD_END (released)
-  double_tap        -> VERY_HEAVY_PUNCH
 
 Charge tier (mirrors CombatConfig.cs and plan.md)
   0.15-1.0 s  -> level 1  (small bolt)
@@ -38,6 +35,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import time
 from dataclasses import asdict
 from collections.abc import Iterator
@@ -58,8 +56,8 @@ _EVT_SLASH_LEFT    = "LEFT_PUNCH"             # wave_in
 _EVT_SLASH_RIGHT   = "RIGHT_PUNCH"            # wave_out
 _EVT_ULTIMATE      = "VERY_HEAVY_PUNCH"       # double_tap
 
-# Minimum fist-hold to register as a blast (avoids misfires from brief twitches).
-_CHARGE_THRESHOLD = 0.15
+# Minimum fist-hold to register as a punch (avoids misfires from brief twitches).
+_CHARGE_THRESHOLD = 0.20
 # Holds beyond this cap at level-4 damage but don't scale further.
 _MAX_CHARGE = 3.5
 # How often CHARGE_UPDATE events are emitted while the fist is held.
@@ -154,86 +152,98 @@ class _MyoBridge:
                            Unity maps hold time to punch tier (see CombatConfig.cs)
     """
 
+    # Per-channel threshold and minimum active channels for a fist
+    _EMG_CHAN_THRESHOLD = float(os.getenv("MYO_EMG_THRESHOLD", "20"))
+    _EMG_MIN_CHANNELS   = int(os.getenv("MYO_MIN_CHANNELS", "3"))
+    # Consecutive ticks required to enter/exit FIST state
+    _DEBOUNCE_TICKS = int(os.getenv("MYO_DEBOUNCE", "2"))
+
     def __init__(self) -> None:
         Myo, emg_mode = _try_import_pyomyo()
         if Myo is None:
             raise ImportError("pyomyo not installed. Install with: pip install pyomyo")
 
-        self._myo = Myo(mode=emg_mode.PREPROCESSED)
-        self._current_pose: str = "rest"
-        self._prev_pose: str = "rest"
+        self._myo = Myo(mode=emg_mode.RAW)
         self._emg: list[int] = [0] * 8
-
         self._fist_start: float | None = None
         self._shield_active: bool = False
+        self._fist_ticks: int = 0   # consecutive ticks above threshold (entry debounce)
+        self._rest_ticks: int = 0   # consecutive ticks below threshold (exit debounce)
+        self._tick_count: int = 0
 
         self._myo.add_emg_handler(self._on_emg)
-        self._myo.add_pose_handler(self._on_pose)
 
     def _on_emg(self, emg: tuple, movement: Any) -> None:
-        self._emg = list(emg)
-
-    def _on_pose(self, pose: Any) -> None:
-        name = str(pose.name) if hasattr(pose, "name") else str(pose)
-        self._current_pose = name
+        self._emg = [abs(v) for v in emg]
 
     def _emg_intensity(self) -> float:
-        """RMS of 8 preprocessed EMG channels, normalised to [0, 1]."""
+        """RMS of all 8 raw EMG channels, normalised to [0, 1]."""
         if not self._emg:
-            return 0.5
+            return 0.0
         rms = (sum(v * v for v in self._emg) / len(self._emg)) ** 0.5
         return round(min(rms / 80.0, 1.0), 3)
+
+    def _raw_above_threshold(self) -> bool:
+        if not self._emg:
+            return False
+        active = sum(1 for v in self._emg if v > self._EMG_CHAN_THRESHOLD)
+        return active >= self._EMG_MIN_CHANNELS
 
     def tick(self) -> list[NormalizedEvent]:
         """Run one PyoMyo poll cycle and return any new game events."""
         self._myo.run()
         events: list[NormalizedEvent] = []
-        pose = self._current_pose
+        emg = self._emg_intensity()
+        raw = self._emg[:8] if self._emg else [0]*8
 
-        # Fist held -> charge; fist released -> blast
-        if pose == "fist":
+        self._tick_count += 1
+        if self._tick_count % (2 * _UPDATE_HZ) == 0:
+            peak = max(raw) if raw else 0
+            active = sum(1 for v in raw if v > self._EMG_CHAN_THRESHOLD)
+            print(f"[MYO] alive  emg={emg:.2f}  peak={peak}  active={active}/{len(raw)}", flush=True)
+
+        # Debounce entry AND exit — prevents flickering during sustained hold
+        currently_fist = self._fist_start is not None
+        if self._raw_above_threshold():
+            self._fist_ticks = min(self._fist_ticks + 1, self._DEBOUNCE_TICKS)
+            self._rest_ticks = 0
+        else:
+            self._rest_ticks = min(self._rest_ticks + 1, self._DEBOUNCE_TICKS)
+            self._fist_ticks = 0
+
+        if not currently_fist:
+            fist = self._fist_ticks >= self._DEBOUNCE_TICKS  # need N ticks to enter
+        else:
+            fist = self._rest_ticks < self._DEBOUNCE_TICKS   # need N ticks to exit
+
+        # Print only on state change
+        new_state = "FIST" if fist else "rest"
+        if new_state != getattr(self, "_last_logged_state", None):
+            peak = max(raw) if raw else 0
+            active = sum(1 for v in raw if v > self._EMG_CHAN_THRESHOLD)
+            print(f"[MYO] {new_state}  emg={emg:.2f}  peak={peak}  active_channels={active}/{len(raw)}", flush=True)
+            self._last_logged_state = new_state
+
+        # Fist contraction -> CHARGE_START once, CHARGE_UPDATE every tick, punch on release
+        if fist:
             if self._fist_start is None:
                 self._fist_start = time.time()
                 events.append(_charge_start_evt())
-                log.debug("[MYO] CHARGE_START")
             else:
                 hold = time.time() - self._fist_start
                 charge = min(hold / _MAX_CHARGE, 1.0)
-                events.append(_charge_update_evt(charge, hold, self._emg_intensity()))
+                events.append(_charge_update_evt(charge, hold, emg))
         else:
             if self._fist_start is not None:
                 hold = time.time() - self._fist_start
                 self._fist_start = None
                 if hold >= _CHARGE_THRESHOLD:
                     charge = min(hold / _MAX_CHARGE, 1.0)
-                    events.append(_blast_release_evt(charge, hold, self._emg_intensity()))
-                    log.debug("[MYO] BLAST_RELEASE hold=%.2fs charge=%.2f", hold, charge)
+                    events.append(_blast_release_evt(charge, hold, emg))
+                    print(f"\n[MYO] >>> PUNCH fired  (held {hold:.2f}s  charge={charge:.2f})", flush=True)
                 else:
-                    log.debug("[MYO] Fist twitch (%.3fs) below threshold, ignored", hold)
+                    print(f"\n[MYO]     twitch ignored ({hold:.3f}s < {_CHARGE_THRESHOLD}s threshold)", flush=True)
 
-        # Spread -> shield (held = shield active, released = shield down)
-        if pose == "fingers_spread" and not self._shield_active:
-            self._shield_active = True
-            events.append(_simple_evt(_EVT_SHIELD_START))
-            log.debug("[MYO] SHIELD_START")
-        elif pose != "fingers_spread" and self._shield_active:
-            self._shield_active = False
-            events.append(_simple_evt(_EVT_SHIELD_END))
-            log.debug("[MYO] SHIELD_END")
-
-        # Waves and double-tap fire once per transition (edge-triggered)
-        if pose != self._prev_pose:
-            if pose == "wave_out":
-                events.append(_simple_evt(_EVT_SLASH_RIGHT))
-                log.debug("[MYO] SLASH_RIGHT")
-            elif pose == "wave_in":
-                events.append(_simple_evt(_EVT_SLASH_LEFT))
-                log.debug("[MYO] SLASH_LEFT")
-            elif pose == "double_tap":
-                events.append(_simple_evt(_EVT_ULTIMATE))
-                log.debug("[MYO] ULTIMATE")
-
-        self._prev_pose = pose
         return events
 
     def connect(self) -> None:
@@ -268,6 +278,7 @@ async def myo_event_stream(ws_url: str | None = None) -> None:
         log.info("[MYO] Streaming to %s", ws_url)
 
     tick_s = 1.0 / _UPDATE_HZ
+    cu_log_count = 0
     try:
         while True:
             evts = bridge.tick()
@@ -275,6 +286,14 @@ async def myo_event_stream(ws_url: str | None = None) -> None:
                 payload = json.dumps(asdict(evt))
                 if ws is not None:
                     await ws.send(payload)
+                    if evt.type == _EVT_CHARGE_UPDATE:
+                        cu_log_count += 1
+                        if cu_log_count % 10 == 1:  # ~2 Hz
+                            p = evt.payload
+                            print(f"[MYO] -> CHARGE_UPDATE  charge={p.get('charge', 0):.2f}  hold={p.get('holdSeconds', 0):.1f}s  emg={p.get('emgIntensity', 0):.2f}", flush=True)
+                    else:
+                        cu_log_count = 0
+                        print(f"[MYO] -> {evt.type}", flush=True)
                 else:
                     print(payload)
             await asyncio.sleep(tick_s)

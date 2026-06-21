@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from backend.agents import GameMasterAgent
@@ -255,6 +255,11 @@ async def unity_socket(websocket: WebSocket) -> None:
             data = await q.get()
             await websocket.send_json(data)
 
+    _MYO_EVENT_TYPES = {
+        "CHARGE_START", "CHARGE_UPDATE", "HEAVY_PUNCH_RELEASE",
+        "GUARD_START", "GUARD_END",
+    }
+
     async def _recv_loop() -> None:
         while True:
             raw = await websocket.receive_json()
@@ -263,8 +268,12 @@ async def unity_socket(websocket: WebSocket) -> None:
                 telemetry = CombatTelemetry(**event.payload)
                 response = _game_master.handle_combat_event(telemetry)
                 await q.put(response.to_event().to_dict())
+            elif event.type in _MYO_EVENT_TYPES:
+                # MYO bridge sends here — forward to all Unity clients
+                _manager.broadcast(raw)
+                log.debug("[WS] MYO event forwarded: %s", event.type)
             else:
-                log.debug("[WS] Unhandled event type from Unity: %s", event.type)
+                log.debug("[WS] Unhandled event type: %s", event.type)
 
     send_task = asyncio.create_task(_send_loop())
     try:

@@ -19,13 +19,14 @@ _CAMERA_INDEX = int(os.getenv("CV_CAMERA_INDEX",   "0") or 0)
 # Tuning — override via env vars if your room / distance differs
 _PUNCH_DEPTH_M = float(os.getenv("CV_PUNCH_DEPTH", "0.22"))  # metres wrist extends past shoulder
 _GUARD_Y_PAD   = float(os.getenv("CV_GUARD_PAD",   "0.04"))  # wrists must clear nose by this much
-_WALK_LEAN     = float(os.getenv("CV_WALK_LEAN",   "0.10"))  # hip-centre x offset from 0.5
+_WALK_LEAN     = float(os.getenv("CV_WALK_LEAN",   "0.06"))  # ankle-centre x offset from 0.5 (step left/right)
 
 # MediaPipe Pose landmark indices
 _NOSE = 0
 _L_SHOULDER, _R_SHOULDER = 11, 12
 _L_WRIST,    _R_WRIST    = 15, 16
 _L_HIP,      _R_HIP      = 23, 24
+_L_ANKLE,    _R_ANKLE    = 27, 28
 
 _MOCK_SEQUENCE = [
     {"gesture": "none",        "confidence": 0.8,  "hand": {"x": 0.5, "y": 0.5}, "bodyCenter": {"x": 0.5,  "y": 0.5}},
@@ -95,8 +96,14 @@ def _detect_gesture(norm_lms, world_lms) -> tuple[str, float]:
     if l_punching:
         return "left_punch", 0.85
 
-    # Walk: hip-centre lean (camera-left = person's right = walk_right in game world)
-    lean = mid_hip_x - 0.5
+    # Walk: lateral step detection via ankle midpoint.
+    # Camera is not mirrored: step RIGHT → ankles shift to camera-left (lower x) → walk_right.
+    l_ankle = norm_lms[_L_ANKLE]
+    r_ankle = norm_lms[_R_ANKLE]
+    ankle_visible = (getattr(l_ankle, "visibility", 1.0) > 0.5
+                     and getattr(r_ankle, "visibility", 1.0) > 0.5)
+    step_x = (l_ankle.x + r_ankle.x) / 2.0 if ankle_visible else mid_hip_x
+    lean = step_x - 0.5
     if lean < -_WALK_LEAN:
         return "walk_right", min(0.9, 0.7 + abs(lean) * 2)
     if lean > _WALK_LEAN:
@@ -166,8 +173,8 @@ async def vision_bridge_stream() -> AsyncIterator[NormalizedEvent]:
       left_punch   — extend left arm toward camera
       heavy_punch  — extend both arms simultaneously
       guard        — raise both wrists above nose level
-      walk_right   — lean body to your right (toward the boss)
-      walk_left    — lean body to your left (away from boss)
+      walk_right   — step your body to the right (toward the boss)
+      walk_left    — step your body to the left (away from boss)
       none         — neutral / no clear gesture
 
     Falls back to a looping mock stream when camera or model is unavailable.
@@ -201,7 +208,7 @@ async def vision_bridge_stream() -> AsyncIterator[NormalizedEvent]:
 
     log.info(
         "[CV] Full-body tracker running — jab toward camera=punch | "
-        "raise hands=guard | lean=walk"
+        "raise hands=guard | step left/right=walk"
     )
     try:
         while True:

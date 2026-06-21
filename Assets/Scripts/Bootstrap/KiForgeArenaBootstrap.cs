@@ -48,7 +48,6 @@ namespace KiForge.Bootstrap
 
                 // --- Player input (left, human): keyboard + MYO charge tiers ---
                 var myo = player.AddComponent<MyoChargeInput>();
-                myo.Initialize(null); // null -> keyboard MYO sim (hold B)
                 var playerInput = player.AddComponent<PlayerAttackInput>();
                 playerInput.Initialize(playerFighter, myo);
 
@@ -63,6 +62,10 @@ namespace KiForge.Bootstrap
                 var eventBus = new KiForgeEventBus();
                 var backend = new GameObject("BackendEventReceiver").AddComponent<BackendEventReceiver>();
                 backend.Initialize(eventBus);
+
+                // Use real MYO bridge events when available; falls back to keyboard (hold B).
+                var wsMyo = new WebSocketMyoSource(eventBus);
+                myo.Initialize(wsMyo);
 
                 var cvAim = player.AddComponent<CvAimController>();
                 cvAim.Initialize(eventBus, player.transform, playerFighter, playerWalk, playerInput, myo, -4.5f, 4.5f);
