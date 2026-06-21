@@ -64,15 +64,11 @@ class GameMasterAgent:
         strategy_weights = strategy_weights_for_profile(profile_after)
         adaptation = describe_adaptation(profile_after, strategy_weights)
         recap_prompt = build_cinematic_prompt(self.highlights)
-
-        # On KO, submit the highlight reel to Pika/Kling for video generation.
         recap_job: dict = {}
+
+        # Reset highlights on KO so the next match starts clean.
         if event.outcome in {"boss_ko", "player_ko", "match_end"} or event.boss_health_after <= 0:
-            recap_job = self.recap_queue.enqueue(
-                recap_prompt,
-                metadata={"player_id": player_id, "round": event.round, "outcome": event.outcome},
-            )
-            self.highlights = FightHighlights()  # reset for next match
+            self.highlights = FightHighlights()
 
         # --- Redis associative memory: recall the most similar past player so the
         # boss can reuse the strategy that worked against them, then index this one.
