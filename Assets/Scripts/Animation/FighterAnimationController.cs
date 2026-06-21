@@ -20,6 +20,8 @@ namespace KiForge.Animation
         private Animator animator;
         private Transform opponent;
         private Vector3 homePosition;
+        private float groundY;
+        private bool groundYInitialized;
         private Coroutine loop;
         private Coroutine activePunchMotion;
         private Coroutine painRoutine;
@@ -40,12 +42,39 @@ namespace KiForge.Animation
             homePosition = pos;
         }
 
+        private void LateUpdate()
+        {
+            // Keep the fighter pinned to its ground plane against any residual drift
+            // (root motion, coroutine races). The death fall is the only time Y is
+            // allowed to change, so skip the lock once defeated.
+            if (!groundYInitialized || defeated)
+            {
+                return;
+            }
+
+            var p = transform.position;
+            if (!Mathf.Approximately(p.y, groundY))
+            {
+                transform.position = new Vector3(p.x, groundY, p.z);
+            }
+        }
+
         public void Initialize(Transform target, bool startsAutomatically, float intervalOffset = 0f)
         {
             opponent = target;
             autoPunch = startsAutomatically;
             animator = GetComponentInChildren<Animator>();
             homePosition = transform.position;
+            groundY = transform.position.y;
+            groundYInitialized = true;
+
+            // Fighters live on a fixed-height plane; all motion is driven by explicit
+            // transform writes. Root motion (e.g. a vertical component in GettingHit /
+            // attack clips) would fight those writes and leave the fighter's Y drifted.
+            if (animator != null)
+            {
+                animator.applyRootMotion = false;
+            }
 
             FaceOpponent();
 
