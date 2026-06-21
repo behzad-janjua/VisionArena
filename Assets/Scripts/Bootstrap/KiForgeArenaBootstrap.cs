@@ -71,17 +71,12 @@ namespace KiForge.Bootstrap
                 var cvStatus = new GameObject("CV Status").AddComponent<CvStatusUI>();
                 cvStatus.Setup(backend, cvAim);
 
-                // --- Arize coach feedback loop (player improvement) ---
-                var coach = new GameObject("ArizeCoach").AddComponent<ArizeCoachFeedback>();
-
                 // --- Boss AI (right): backend/Agentverse-driven decisions + local fallback ---
                 var bossAgent = boss.AddComponent<BackendBossAgent>();
                 bossAgent.Initialize("http://127.0.0.1:8000/agent/combat");
                 var bossBrain = boss.AddComponent<BossAgentController>();
                 bossBrain.Initialize(bossFighter, player.transform, bossHealth, playerHealth, bossAgent,
-                    () => coach.PlayerStyle, playerInput);
-
-                coach.Initialize(playerInput, () => bossBrain.CurrentDecision);
+                    () => "balanced", playerInput);
 
                 // --- Telemetry recorder: every hit goes to /agent/combat over the WebSocket ---
                 var telemetryRecorder = new GameObject("TelemetryRecorder").AddComponent<MatchTelemetryRecorder>();
@@ -97,7 +92,6 @@ namespace KiForge.Bootstrap
                     var dmg = ResolveDamage(playerFighter.LastAttack, blocked);
                     bossHealth.ApplyDamage(dmg);
                     bossFighter.PlayPain();
-                    coach.RecordPlayerLanded(playerFighter.LastAttack, blocked);
 
                     round++;
                     var outcome = bossHealth.IsDefeated ? "boss_ko"
@@ -131,7 +125,6 @@ namespace KiForge.Bootstrap
                     var dmg = ResolveDamage(bossFighter.LastAttack, blocked);
                     playerHealth.ApplyDamage(dmg);
                     playerFighter.PlayPain();
-                    coach.RecordPlayerTookHit();
 
                     round++;
                     var outcome2 = playerHealth.IsDefeated ? "player_ko"
