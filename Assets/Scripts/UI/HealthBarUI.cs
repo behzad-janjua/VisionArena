@@ -125,7 +125,7 @@ namespace KiForge.UI
             ghostRect.offsetMin = new Vector2(3f, 3f);
             ghostRect.offsetMax = new Vector2(-3f, -3f);
             var ghostImg        = ghostGO.AddComponent<Image>();
-            ghostImg.color      = new Color(1f, 0.78f, 0.08f, 0.72f);
+            ghostImg.color      = new Color(fillColor.r * 0.35f, fillColor.g * 0.35f, fillColor.b * 0.35f, 0.82f);
             ghostImg.type       = Image.Type.Filled;
             ghostImg.fillMethod = Image.FillMethod.Horizontal;
             ghostImg.fillOrigin = isLeft ? 0 : 1;
