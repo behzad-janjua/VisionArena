@@ -164,9 +164,13 @@ namespace KiForge.Bootstrap
                 var chargeBar = new GameObject("ChargeBarUI").AddComponent<ChargeBarUI>();
                 chargeBar.Setup(myo);
 
-                // --- Narration display: shows NarratorAgent move name + commentary ---
+                // --- Narration display: big anime move-name pop (fades after 3.5s) ---
                 var narration = new GameObject("NarrationDisplayUI").AddComponent<NarrationDisplayUI>();
                 narration.Setup(eventBus);
+
+                // --- Caption bar: scrolling commentator log at the bottom (persists) ---
+                var captions = new GameObject("CaptionBarUI").AddComponent<CaptionBarUI>();
+                captions.Setup(eventBus);
             }
         }
 

@@ -36,6 +36,13 @@ namespace KiForge.Combat
                     guard = 0.10f;
                     heavyCounter = 0f;
                     break;
+                case "patient_charger":
+                    pressure = 0.60f;  // rush in to interrupt the wind-up
+                    dodge = 0.20f;
+                    jab = 0.08f;
+                    guard = 0.12f;
+                    heavyCounter = 0f;
+                    break;
                 default:
                     pressure = 0.25f;
                     dodge = 0.25f;

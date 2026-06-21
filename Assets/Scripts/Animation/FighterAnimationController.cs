@@ -15,7 +15,6 @@ namespace KiForge.Animation
         [SerializeField] private string gettingHitStateName = "GettingHit";
         [SerializeField] private float punchInterval = 2.2f;
         [SerializeField] private float punchTravelDistance = 0.55f;
-        [SerializeField] private float impactDelay = 0.38f;
         [SerializeField] private bool autoPunch;
         [SerializeField] private float painFlashSeconds = 0.16f;
         [SerializeField] private float hitReactionSeconds = 0.45f;

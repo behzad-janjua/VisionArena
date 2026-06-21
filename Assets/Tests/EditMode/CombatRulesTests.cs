@@ -35,8 +35,8 @@ namespace KiForge.Tests
 
             weights.AdaptForStyle("patient_charger");
 
-            Assert.Greater(weights.rush, weights.dodge);
-            Assert.Less(weights.projectile, 0.1f);
+            Assert.Greater(weights.pressure, weights.dodge);  // pressure = rush in to interrupt wind-up
+            Assert.Less(weights.jab, 0.1f);                    // don't waste jabs against a patient charger
         }
 
         [Test]
