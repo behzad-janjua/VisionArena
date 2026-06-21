@@ -16,8 +16,9 @@ namespace KiForge.Bootstrap
         {
             EnsureCamera();
 
-            var player = SpawnFighterModel("Player", new Vector3(-2.2f, 0.5f, 0f), new Color(0.12f, 0.9f, 1f));
-            var boss   = SpawnFighterModel("Boss",   new Vector3( 2.2f, 0.5f, 0f), new Color(1f, 0.18f, 0.45f));
+            // Y = 0.054 plants the fighters' feet on the GrassField (top at Y = 0).
+            var player = SpawnFighterModel("Player", new Vector3(-2.2f, 0.054f, 0f), new Color(0.12f, 0.9f, 1f));
+            var boss   = SpawnFighterModel("Boss",   new Vector3( 2.2f, 0.054f, 0f), new Color(1f, 0.18f, 0.45f));
 
             if (player != null && boss != null)
             {

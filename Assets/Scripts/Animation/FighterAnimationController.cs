@@ -7,6 +7,9 @@ namespace KiForge.Animation
 {
     public sealed class FighterAnimationController : MonoBehaviour
     {
+        [SerializeField] private string idleStateName = "Idle";
+        [SerializeField] private string walkStateName = "Walking";
+        [SerializeField] private string walkBackStateName = "WalkingBackwards";
         [SerializeField] private string punchStateName = "Punching";
         [SerializeField] private string dyingStateName = "Dying";
         [SerializeField] private string gettingHitStateName = "GettingHit";
@@ -15,6 +18,8 @@ namespace KiForge.Animation
         [SerializeField] private float impactDelay = 0.38f;
         [SerializeField] private bool autoPunch;
         [SerializeField] private float painFlashSeconds = 0.16f;
+        [SerializeField] private float hitReactionSeconds = 0.45f;
+        [SerializeField] private float idleCrossFade = 0.15f;
         [SerializeField] private float attackRange = 5.0f;
 
         private Animator animator;
@@ -27,6 +32,7 @@ namespace KiForge.Animation
         private Coroutine painRoutine;
         private Coroutine deathRoutine;
         private bool defeated;
+        private int locomotion; // 0 = idle, 1 = walking toward opponent, -1 = backing away
 
         public event Action<FighterAnimationController, Transform> Impact;
 
@@ -74,6 +80,12 @@ namespace KiForge.Animation
             if (animator != null)
             {
                 animator.applyRootMotion = false;
+
+                // Start resting in the idle stance rather than a frozen attack pose.
+                if (HasState(idleStateName))
+                {
+                    animator.Play(idleStateName, 0, 0f);
+                }
             }
 
             FaceOpponent();
@@ -99,6 +111,7 @@ namespace KiForge.Animation
             }
 
             IsBlocking = false;
+            locomotion = 0;
             FaceOpponent();
 
             if (animator != null)
@@ -123,6 +136,7 @@ namespace KiForge.Animation
             }
 
             IsBlocking = true;
+            locomotion = 0;
             FaceOpponent();
 
             if (activePunchMotion != null)
@@ -146,10 +160,67 @@ namespace KiForge.Animation
             }
 
             IsBlocking = false;
-            if (animator != null && !defeated)
+            ReturnToIdle();
+        }
+
+        /// <summary>Cross-fade back to the resting idle stance, unless busy or defeated.</summary>
+        private void ReturnToIdle()
+        {
+            if (defeated || IsBlocking || IsAttacking || animator == null)
             {
-                animator.CrossFadeInFixedTime(punchStateName, 0.12f);
+                return;
             }
+
+            var target = HasState(idleStateName) ? idleStateName : punchStateName;
+            animator.CrossFadeInFixedTime(target, idleCrossFade);
+        }
+
+        /// <summary>
+        /// Drive the walk animation from a world-space horizontal move direction
+        /// (negative = moving -X, positive = moving +X). Walking toward the opponent
+        /// plays the forward walk; moving away plays the backward walk. Attacks,
+        /// blocks, pain and death take priority and suppress locomotion.
+        /// </summary>
+        public void SetLocomotion(float worldDirX)
+        {
+            if (defeated || IsAttacking || IsBlocking || animator == null)
+            {
+                return;
+            }
+
+            if (Mathf.Abs(worldDirX) < 0.01f)
+            {
+                StopLocomotion();
+                return;
+            }
+
+            var facingRight = opponent == null || opponent.position.x > transform.position.x;
+            var forwardSign = facingRight ? 1f : -1f;
+            var dir = Mathf.Sign(worldDirX) == forwardSign ? 1 : -1;
+
+            if (dir == locomotion)
+            {
+                return;
+            }
+
+            locomotion = dir;
+            var state = dir == 1 ? walkStateName : walkBackStateName;
+            if (HasState(state))
+            {
+                animator.CrossFadeInFixedTime(state, idleCrossFade);
+            }
+        }
+
+        /// <summary>Stop walking and settle back into the idle stance.</summary>
+        public void StopLocomotion()
+        {
+            if (locomotion == 0)
+            {
+                return;
+            }
+
+            locomotion = 0;
+            ReturnToIdle();
         }
 
         public void StopLoop()
@@ -171,6 +242,7 @@ namespace KiForge.Animation
             // Blocking absorbs the hit: keep the guard pose, just a small flash.
             if (!IsBlocking && animator != null && HasState(gettingHitStateName))
             {
+                locomotion = 0;
                 animator.CrossFadeInFixedTime(gettingHitStateName, 0.06f);
             }
 
@@ -267,6 +339,14 @@ namespace KiForge.Animation
                 }
             }
 
+            // Let the getting-hit reaction read, then settle back into idle.
+            var remainder = hitReactionSeconds - painFlashSeconds;
+            if (remainder > 0f)
+            {
+                yield return new WaitForSeconds(remainder);
+            }
+
+            ReturnToIdle();
             painRoutine = null;
         }
 
@@ -342,6 +422,9 @@ namespace KiForge.Animation
 
             transform.position = homePosition;
             activePunchMotion = null;
+
+            // Settle back into the idle stance instead of holding the attack pose.
+            ReturnToIdle();
         }
 
         private void FaceOpponent()
