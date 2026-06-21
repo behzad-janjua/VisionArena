@@ -129,23 +129,23 @@ namespace KiForge.Input
                     case KiForgeEventNames.ChargeUpdate:
                         eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.ChargeUpdate, msg.GetOrigin(), msg.GetAim(), msg.Charge, msg.HoldSeconds));
                         break;
-                    case KiForgeEventNames.BlastRelease:
-                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.BlastRelease, msg.GetOrigin(), msg.GetAim(), msg.Charge, msg.HoldSeconds));
+                    case KiForgeEventNames.HeavyPunchRelease:
+                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.HeavyPunchRelease, msg.GetOrigin(), msg.GetAim(), msg.Charge, msg.HoldSeconds));
                         break;
-                    case KiForgeEventNames.ShieldStart:
-                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.ShieldStart, msg.GetOrigin(), msg.GetAim()));
+                    case KiForgeEventNames.GuardStart:
+                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.GuardStart, msg.GetOrigin(), msg.GetAim()));
                         break;
-                    case KiForgeEventNames.ShieldEnd:
-                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.ShieldEnd, msg.GetOrigin(), msg.GetAim()));
+                    case KiForgeEventNames.GuardEnd:
+                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.GuardEnd, msg.GetOrigin(), msg.GetAim()));
                         break;
-                    case KiForgeEventNames.SlashLeft:
-                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.SlashLeft, msg.GetOrigin(), msg.GetAim()));
+                    case KiForgeEventNames.LeftPunch:
+                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.LeftPunch, msg.GetOrigin(), msg.GetAim()));
                         break;
-                    case KiForgeEventNames.SlashRight:
-                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.SlashRight, msg.GetOrigin(), msg.GetAim()));
+                    case KiForgeEventNames.RightPunch:
+                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.RightPunch, msg.GetOrigin(), msg.GetAim()));
                         break;
-                    case KiForgeEventNames.Ultimate:
-                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.Ultimate, msg.GetOrigin(), msg.GetAim()));
+                    case KiForgeEventNames.VeryHeavyPunch:
+                        eventBus?.PublishGesture(GestureEvent.Create(GestureEventType.VeryHeavyPunch, msg.GetOrigin(), msg.GetAim()));
                         break;
                     case KiForgeEventNames.PoseUpdate:
                         eventBus?.PublishPose(new PoseEvent
@@ -153,8 +153,22 @@ namespace KiForge.Input
                             wrist = msg.GetWrist(),
                             bodyCenter = msg.GetBodyCenter(),
                             aim = msg.GetAim(),
+                            gesture = msg.Gesture,
                             confidence = msg.Confidence,
+                            mock = msg.Mock,
                             timestamp = msg.timestamp
+                        });
+                        break;
+                    case KiForgeEventNames.AgentResponse:
+                        eventBus?.PublishAgentResponse(new AgentResponseEvent
+                        {
+                            moveName      = msg.MoveName,
+                            narration     = msg.Narration,
+                            bossAction    = msg.BossAction,
+                            nextStrategy  = msg.NextStrategy,
+                            recapPrompt   = msg.RecapPrompt,
+                            counterSuccess = msg.CounterSuccess,
+                            survivalScore  = msg.SurvivalScore
                         });
                         break;
                     default:
@@ -185,21 +199,32 @@ namespace KiForge.Input
             public float y;
         }
 
-        // Mirrors the backend NormalizedEvent.payload object. All combat/pose fields
-        // are nested here — the backend wraps every websocket frame as
+        // Mirrors the backend NormalizedEvent.payload object. All combat/pose/agent
+        // fields are nested here — the backend wraps every websocket frame as
         // { "type", "timestamp", "payload": { ... } }.
         [Serializable]
         private sealed class Payload
         {
+            // Gesture / pose fields
             public float charge;
             public float holdSeconds;
             public float emgIntensity;
             public float confidence;
+            public bool mock;
+            public string gesture;
             public Vec2Msg origin;
             public Vec2Msg aim;
             public Vec2Msg wrist;
             public Vec2Msg bodyCenter;
             public Vec2Msg target;
+            // Agent response fields (AGENT_RESPONSE payload from AgentResponse.to_event())
+            public string move_name;
+            public string narration;
+            public string boss_action;
+            public string next_strategy;
+            public string recap_prompt;
+            public float counter_success;
+            public float survival_score;
         }
 
         [Serializable]
@@ -215,6 +240,17 @@ namespace KiForge.Input
             public float Charge => payload?.charge ?? 0f;
             public float HoldSeconds => payload?.holdSeconds ?? 0f;
             public float Confidence => payload?.confidence ?? 0f;
+            public bool Mock => payload?.mock ?? false;
+            public string Gesture => string.IsNullOrEmpty(payload?.gesture) ? "none" : payload.gesture;
+
+            // Agent response accessors
+            public string MoveName      => payload?.move_name     ?? string.Empty;
+            public string Narration     => payload?.narration      ?? string.Empty;
+            public string BossAction    => payload?.boss_action    ?? string.Empty;
+            public string NextStrategy  => payload?.next_strategy  ?? string.Empty;
+            public string RecapPrompt   => payload?.recap_prompt   ?? string.Empty;
+            public float CounterSuccess => payload?.counter_success ?? 0f;
+            public float SurvivalScore  => payload?.survival_score  ?? 0f;
 
             public Vector2 GetOrigin() => ToVec(payload?.origin, Vector2.zero);
             public Vector2 GetAim() => ToVec(payload?.aim, Vector2.right);

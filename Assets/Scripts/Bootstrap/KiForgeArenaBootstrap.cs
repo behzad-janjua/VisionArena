@@ -51,23 +51,28 @@ namespace KiForge.Bootstrap
                 var playerWalk = player.AddComponent<PlayerWalkController>();
                 playerWalk.Initialize(1.3f, -4.5f, 4.5f, arrowKeys: false); // WASD (forward speed; backward = 0.55x)
 
-                // --- Computer vision: webcam body tracking via the backend WebSocket ---
-                // BackendEventReceiver connects to the FastAPI/MediaPipe pose stream and
-                // republishes POSE_UPDATE frames on the bus; CvAimController turns body
-                // center into movement and wrist into an aim reticle. Falls back to the
+                // --- Computer vision: webcam hand gestures via the backend WebSocket ---
+                // BackendEventReceiver connects to the FastAPI/MediaPipe gesture stream and
+                // republishes POSE_UPDATE frames on the bus; CvAimController maps a closed
+                // fist to a punch and an open palm to walking forward. Falls back to the
                 // keyboard PlayerWalkController whenever CV frames stop arriving.
                 var eventBus = new KiForgeEventBus();
                 var backend = new GameObject("BackendEventReceiver").AddComponent<BackendEventReceiver>();
                 backend.Initialize(eventBus);
 
                 var cvAim = player.AddComponent<CvAimController>();
-                cvAim.Initialize(eventBus, player.transform, playerFighter, playerWalk, -4.5f, 4.5f);
+                cvAim.Initialize(eventBus, player.transform, playerFighter, playerWalk, playerInput, -4.5f, 4.5f);
+
+                // On-screen CV link/gesture status pill (top-center).
+                var cvStatus = new GameObject("CV Status").AddComponent<CvStatusUI>();
+                cvStatus.Setup(backend, cvAim);
 
                 // --- Arize coach feedback loop (player improvement) ---
                 var coach = new GameObject("ArizeCoach").AddComponent<ArizeCoachFeedback>();
 
-                // --- Boss AI (right): agent-driven decisions + movement ---
-                var bossAgent = new PlaceholderBossAgent();
+                // --- Boss AI (right): backend/Agentverse-driven decisions + local fallback ---
+                var bossAgent = boss.AddComponent<BackendBossAgent>();
+                bossAgent.Initialize("http://127.0.0.1:8000/agent/combat");
                 var bossBrain = boss.AddComponent<BossAgentController>();
                 bossBrain.Initialize(bossFighter, player.transform, bossHealth, playerHealth, bossAgent,
                     () => coach.PlayerStyle, playerInput);
@@ -100,6 +105,14 @@ namespace KiForge.Bootstrap
 
                 var hud = new GameObject("HUD").AddComponent<HealthBarUI>();
                 hud.Setup(playerHealth, bossHealth);
+
+                // --- Charge bar: fills while the player holds fist (MYO or keyboard-B) ---
+                var chargeBar = new GameObject("ChargeBarUI").AddComponent<ChargeBarUI>();
+                chargeBar.Setup(myo);
+
+                // --- Narration display: shows NarratorAgent move name + commentary ---
+                var narration = new GameObject("NarrationDisplayUI").AddComponent<NarrationDisplayUI>();
+                narration.Setup(eventBus);
             }
         }
 

@@ -6,9 +6,15 @@ pytest>=8.0.0
 mediapipe>=0.10.0
 opencv-python-headless>=4.9.0
 websockets>=12.0
+requests>=2.31.0
 # Fetch.ai uAgents — registers the GameMasterAgent on Agentverse (Mailbox) and
 # exposes the Chat Protocol for ASI:One. See backend/uagents_app.py.
 uagents>=0.22.0
 # Optional: enables live ASI:One / OpenAI-compatible LLM agents. The backend
 # runs fine without it (agents fall back to deterministic output).
 openai>=1.30.0
+# Optional: Arize Phoenix fight-lab tracing export.
+# Set PHOENIX_COLLECTOR_ENDPOINT or ARIZE_API_KEY + ARIZE_SPACE_ID to activate.
+# pip install arize-phoenix-otel opentelemetry-exporter-otlp-proto-http
+# Optional: MYO armband real hardware driver.
+# pip install pyomyo
