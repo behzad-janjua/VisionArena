@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from backend.agents import GameMasterAgent
 from backend.agents.game_master_agent import _TRACKED_ABILITIES
 from backend.agentverse_adapter import respond_to_text as respond_to_agent_text
+from backend.commentary_adapter import respond_to_commentary_text
 from backend.models import CombatTelemetry, EventType, NormalizedEvent
 from backend.player_memory import style_vector
 from backend.vision_bridge import vision_bridge_stream
@@ -208,6 +209,13 @@ def agent_chat(payload: AgentChatRequest) -> AgentChatResponse:
     return AgentChatResponse(reply=reply, player_id=payload.player_id)
 
 
+@app.post("/agent/commentary", response_model=AgentChatResponse)
+def agent_commentary(payload: AgentChatRequest) -> AgentChatResponse:
+    """Agentverse chat route for the Commentator Agent: move name + narration only."""
+    reply = respond_to_commentary_text(payload.message)
+    return AgentChatResponse(reply=reply, player_id=payload.player_id)
+
+
 @app.get("/agent/state")
 def agent_state(player_id: str = "agentverse_player") -> dict[str, Any]:
     """Small read endpoint for hosted agent health checks and judge demos."""
@@ -224,6 +232,7 @@ def agent_manifest() -> dict[str, Any]:
         "framework": "FastAPI",
         "protocols": ["Agent Chat Protocol", "structured combat telemetry"],
         "chat_endpoint": "/agent/chat",
+        "commentary_endpoint": "/agent/commentary",
         "combat_endpoint": "/agent/combat",
         "state_endpoint": "/agent/state",
         "example_message": "start duel",

@@ -1,6 +1,8 @@
 from backend.fight_lab import evaluate_boss_turn
 from backend.agents.game_master_agent import GameMasterAgent
+from backend.agents.narrator_agent import NarratorAgent
 from backend.agentverse_adapter import respond_to_text
+from backend.commentary_adapter import respond_to_commentary_text
 from backend.models import CombatTelemetry
 from backend.pika_recap import build_recap_prompt
 from backend.recap_queue import RecapQueue
@@ -92,6 +94,27 @@ def test_recap_prompt_uses_match_telemetry() -> None:
 
     assert "Very Heavy Punch" in prompt
     assert "neon arena" in prompt
+
+
+def test_narrator_fallback_returns_real_narration() -> None:
+    event = CombatTelemetry(
+        round=1,
+        player_action="heavy_punch",
+        charge_time=2.4,
+        accuracy=0.8,
+        damage_dealt_by_player=28,
+        damage_dealt_by_boss=0,
+        boss_action="pressure",
+        boss_health_after=72,
+        player_health_after=100,
+        outcome="boss_hit",
+    )
+
+    move_name, narration = NarratorAgent().narrate(event)
+
+    assert move_name == "Heavy Punch"
+    assert "28 damage" in narration
+    assert narration.strip()
 
 
 def test_game_master_updates_profile_traces_and_strategy_weights(tmp_path) -> None:
@@ -211,3 +234,10 @@ def test_agentverse_text_adapter_runs_demo_turn() -> None:
     assert "Heavy Punch" in reply
     assert "Plan:" in reply
     assert "Mode: adapted" in reply
+
+
+def test_commentary_adapter_returns_narration_only() -> None:
+    reply = respond_to_commentary_text("start commentary")
+
+    assert "Heavy Punch" in reply
+    assert "Boss countered with" not in reply
