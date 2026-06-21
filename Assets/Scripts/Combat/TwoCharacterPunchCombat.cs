@@ -6,7 +6,7 @@ namespace KiForge.Combat
 {
     public sealed class TwoCharacterPunchCombat : MonoBehaviour
     {
-        [SerializeField] private int punchDamage = 4;
+        [SerializeField] private int punchDamage = 10;
 
         private PlayerCombatController player;
         private BossCombatController boss;

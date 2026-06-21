@@ -37,7 +37,7 @@ def trigger_boss_call(phone: str, player_id: str, store: RedisStore) -> dict[str
                 "maxTokens": 300,
             },
             "voice": {
-                "provider": "elevenlabs",
+                "provider": "11labs",
                 "voiceId": os.getenv("VAPI_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
                 "stability": 0.35,
                 "similarityBoost": 0.8,

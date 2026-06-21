@@ -86,7 +86,7 @@ namespace KiForge.UI
             float inner = cw - pad * 2f;
             float y = cy + 52f;
 
-            GUI.Label(new Rect(cx + pad, y, inner, 88f), "KIFORGE ARENA", titleStyle);
+            GUI.Label(new Rect(cx + pad, y, inner, 88f), "VISION ARENA", titleStyle);
             y += 96f;
 
             GUI.Label(new Rect(cx + pad, y, inner, 56f),

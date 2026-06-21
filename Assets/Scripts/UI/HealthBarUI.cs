@@ -31,13 +31,7 @@ namespace KiForge.UI
             var go     = new GameObject("HUD Canvas");
             var canvas = go.AddComponent<Canvas>();
             canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 10;
-
-            var scaler = go.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode        = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight  = 0.5f;
-
+            canvas.sortingOrder = 25;
             go.AddComponent<GraphicRaycaster>();
             return canvas;
         }
@@ -45,11 +39,12 @@ namespace KiForge.UI
         private static FighterHealthBar BuildBlockBar(Canvas canvas, string label, string nameTag,
             bool isLeft, Color fillColor, float maxHealth)
         {
-            const float barWidth  = 560f;
-            const float barHeight = 34f;
-            const float margin    = 28f;
-            const float labelH    = 18f;
-            const float labelGap  = 4f;
+            float sf       = Screen.height / 1080f;
+            float barWidth  = 560f * sf;
+            float barHeight = 34f  * sf;
+            float margin    = 28f  * sf;
+            float labelH    = 18f  * sf;
+            float labelGap  = 4f   * sf;
 
             // --- Fighter name label ---
             var nameGO = new GameObject(label + "_Name");

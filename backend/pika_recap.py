@@ -16,10 +16,15 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .models import CombatTelemetry
+
+if TYPE_CHECKING:
+    from .redis_store import RedisStore
 
 log = logging.getLogger(__name__)
 
@@ -235,3 +240,48 @@ def submit_recap(prompt: str, metadata: dict[str, Any] | None = None) -> dict[st
 
 # Alias kept so recap_queue.py import doesn't break
 submit_recap_to_pika = submit_recap
+
+
+def _poll_job_url(job_id: str, store: "RedisStore", player_id: str) -> None:
+    """Background thread: poll Pika until the video URL is available, then save it."""
+    api_key = os.getenv("PIKA_API_KEY", "").strip()
+    if not api_key or job_id.startswith("recap_"):
+        return  # no real job to poll
+
+    try:
+        import requests  # noqa: PLC0415
+
+        poll_url = f"https://api.pika.art/v1/jobs/{job_id}"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        deadline = time.time() + 300  # give up after 5 min
+
+        while time.time() < deadline:
+            time.sleep(8)
+            try:
+                resp = requests.get(poll_url, headers=headers, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+                status = data.get("status", "")
+                if status == "completed":
+                    url = (data.get("result") or {}).get("url", "")
+                    if url:
+                        store.set_json(f"player:{player_id}:recap_url", {"url": url, "job_id": job_id})
+                        log.info("[Pika] Recap video ready for %s: %s", player_id, url)
+                    return
+                if status in {"failed", "cancelled"}:
+                    log.warning("[Pika] Recap job %s ended with status: %s", job_id, status)
+                    return
+            except Exception as exc:
+                log.debug("[Pika] Poll attempt failed: %s", exc)
+    except Exception as exc:
+        log.warning("[Pika] Background poll error: %s", exc)
+
+
+def submit_and_poll(prompt: str, store: "RedisStore", player_id: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Submit recap to Pika and start a background thread to poll for the video URL."""
+    result = submit_recap(prompt, metadata)
+    job_id = result.get("job_id", "")
+    if job_id and result.get("status") == "submitted":
+        t = threading.Thread(target=_poll_job_url, args=(job_id, store, player_id), daemon=True)
+        t.start()
+    return result

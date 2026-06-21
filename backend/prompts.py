@@ -1,4 +1,4 @@
-"""Prompt templates for KiForge Arena's LLM-backed agents.
+"""Prompt templates for Vision Arena's LLM-backed agents.
 
 Every agent in the demo has a deterministic fallback (see the agent classes),
 so the game is fully playable with no API key. When ASI_ONE_API_KEY (or any
@@ -64,7 +64,7 @@ def narrator_messages(event: Any, pattern_hint: str = "") -> list[dict[str, str]
 # --------------------------------------------------------------------------- #
 
 ENEMY_REASONING_SYSTEM = (
-    "You are the EnemyAgent's tactical voice in KiForge Arena. Given the player's "
+    "You are the EnemyAgent's tactical voice in Vision Arena. Given the player's "
     "fighting style and the move the boss is about to make, explain the boss's "
     "reasoning in ONE sentence (max 20 words), as a cold, calculating opponent. "
     'Respond with ONLY minified JSON: {"boss_reasoning": "..."}. No markdown.'
@@ -99,7 +99,7 @@ def enemy_reasoning_messages(profile: dict[str, Any], boss_action: str, strategy
 # --------------------------------------------------------------------------- #
 
 COACH_SYSTEM = (
-    "You are the CoachAgent for KiForge Arena. You analyze the player's combat "
+    "You are the CoachAgent for Vision Arena. You analyze the player's combat "
     "history and give ONE encouraging, concrete tip (max 25 words) on how to vary "
     "their attacks and beat the adapting boss. Speak directly to the player. "
     'Respond with ONLY minified JSON: {"coaching": "..."}. No markdown.'
@@ -136,7 +136,7 @@ def coach_messages(profile: dict[str, Any], boss_adaptation: str) -> list[dict[s
 # --------------------------------------------------------------------------- #
 
 RECAP_SYSTEM = (
-    "You are the RecapAgent / AI director for KiForge Arena. From real match "
+    "You are the RecapAgent / AI director for Vision Arena. From real match "
     "telemetry you write a single vivid prompt for Pika to generate a ~7 second "
     "anime-style boxing recap video. Always: neon arena setting, a fighter winding up "
     "a named punch, tight footwork, fast camera, impact flash, cinematic "
@@ -191,7 +191,7 @@ def _event_fields(event: Any) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 
 _BOSS_CALL_SYSTEM = (
-    "You are the Boss in Voice Arena — a cold, menacing mob boss who fights for sport. "
+    "You are the Boss in Vision Arena — a cold, menacing mob boss who fights for sport. "
     "You called the player to intimidate them before the match. You are not impressed by anything they say.\n\n"
     "Rules:\n"
     "- The ENTIRE call must end in under 40 seconds. Be brutal and brief.\n"

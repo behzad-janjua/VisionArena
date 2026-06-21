@@ -1,8 +1,8 @@
-# KiForge Arena Devpost Notes
+# Vision Arena Devpost Notes
 
 ## Track Story
 
-KiForge Arena is a 2.5D Unity boss fight controlled by body input. Unity handles the real-time combat loop while backend agents handle strategy, narration, memory, evaluation, and recap generation.
+Vision Arena is a 2.5D Unity boss fight controlled by body input. Unity handles the real-time combat loop while backend agents handle strategy, narration, memory, evaluation, and recap generation.
 
 ## Sponsor Mapping
 

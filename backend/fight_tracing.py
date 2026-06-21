@@ -43,7 +43,7 @@ def setup_tracing() -> bool:
         tracer_provider = register(
             space_id=space_id,
             api_key=api_key,
-            model_id="kiforge-arena",
+            project_name="vision-arena",
         )
 
         # Auto-instrument every OpenAI client call (ASI:One is OpenAI-compatible).
@@ -55,7 +55,7 @@ def setup_tracing() -> bool:
             log.warning("[Arize] openinference-instrumentation-openai not found — LLM spans skipped")
 
         from opentelemetry import trace  # type: ignore[import-untyped]
-        _tracer = trace.get_tracer("kiforge.arena")
+        _tracer = trace.get_tracer("vision.arena")
         _active = True
         log.info("[Arize] Tracing active → space %s…", space_id[:12])
         return True

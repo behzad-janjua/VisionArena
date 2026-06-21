@@ -48,7 +48,7 @@ _GHOST_PLAYERS = [
 
 
 class RedisStore:
-    """Thin Redis wrapper for KiForge Arena game memory.
+    """Thin Redis wrapper for Vision Arena game memory.
 
     Every method degrades to an in-memory equivalent when no ``REDIS_URL`` is
     configured (or the server is unreachable), so the backend and tests run with

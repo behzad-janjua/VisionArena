@@ -1,4 +1,4 @@
-# KiForge Arena
+# Vision Arena
 
 A real-time 2.5D anime boss fight controlled by full-body pose tracking, MYO EMG armband, and AI agents — built for the Fetch.ai / ASI:One hackathon.
 
@@ -18,7 +18,7 @@ A real-time 2.5D anime boss fight controlled by full-body pose tracking, MYO EMG
 
 1. Open this folder in Unity 2022.3 or newer.
 2. Create an empty scene.
-3. Add an empty GameObject named `KiForge Arena`.
+3. Add an empty GameObject named `Vision Arena`.
 4. Attach `KiForgeArenaBootstrap`.
 5. Press Play.
 
@@ -26,13 +26,10 @@ Fallback controls:
 
 | Input | Action |
 | --- | --- |
-| Mouse | Aim |
-| Arrow keys / horizontal axis | Move |
-| Hold `F` | Charge |
-| Release `F` | Heavy punch |
-| `S` | Guard |
-| `A` / `D` | Left / right punch |
-| Space | Very-heavy punch |
+| `A` / `D` | Move left / right |
+| `J` / `K` | Left / right punch |
+| `U` / `I` | Heavy / very-heavy punch |
+| `;` / `'` | Hold to guard left / right |
 
 ## Backend Demo
 

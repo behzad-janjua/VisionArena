@@ -54,8 +54,9 @@ namespace KiForge.Bootstrap
                 // Wire death animation directly to health-depletion events.
                 // The telemetry lambdas (further down) already send the KO event that triggers
                 // the backend's Pika recap. These callbacks handle the visual side only.
-                bossHealth.Defeated   += () => { bossFighter.PlayDying();   playerFighter.StopLoop(); };
-                playerHealth.Defeated += () => { playerFighter.PlayDying(); bossFighter.StopLoop();   };
+                var recapOverlay = new GameObject("RecapOverlayUI").AddComponent<RecapOverlayUI>();
+                bossHealth.Defeated   += () => { bossFighter.PlayDying();   playerFighter.StopLoop(); recapOverlay.ShowAfterKO(playerWon: true);  };
+                playerHealth.Defeated += () => { playerFighter.PlayDying(); bossFighter.StopLoop();   recapOverlay.ShowAfterKO(playerWon: false); };
 
                 // --- Player input (left, human): keyboard + MYO charge tiers ---
                 var myo = player.AddComponent<MyoChargeInput>();
@@ -194,6 +195,10 @@ namespace KiForge.Bootstrap
                 // --- AI Fight Lab panel: Tab to toggle, polls /demo/fight-lab ---
                 var fightLab = new GameObject("FightLabPanelUI").AddComponent<FightLabPanelUI>();
                 fightLab.Setup();
+
+                // --- Coach overlay: live Arize-style eval + coaching tip (top-left) ---
+                var coach = new GameObject("ArizeCoachFeedback").AddComponent<ArizeCoachFeedback>();
+                coach.Initialize(playerInput, () => bossBrain.CurrentDecision);
             }
         }
 

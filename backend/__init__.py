@@ -1,1 +1,1 @@
-"""KiForge Arena backend package."""
+"""Vision Arena backend package."""

@@ -379,7 +379,7 @@ def print_mock_myo_events(repeat: int = 1, delay: float = 0.35) -> None:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="[MYO] %(message)s")
-    parser = argparse.ArgumentParser(description="MYO / PyoMyo event bridge for KiForge Arena.")
+    parser = argparse.ArgumentParser(description="MYO / PyoMyo event bridge for Vision Arena.")
     parser.add_argument(
         "--ws",
         default="",

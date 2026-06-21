@@ -1,4 +1,4 @@
-"""Minimal OpenAI-compatible chat client for KiForge Arena agents.
+"""Minimal OpenAI-compatible chat client for Vision Arena agents.
 
 Targets Fetch.ai's ASI:One by default (OpenAI-compatible chat completions), but
 works with any OpenAI-style endpoint via env vars. The whole module is optional:

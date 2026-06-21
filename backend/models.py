@@ -100,6 +100,7 @@ class AgentResponse:
     learning_mode: str = "adapted"
     trace: dict[str, Any] = field(default_factory=dict)
     recap_job: dict[str, Any] = field(default_factory=dict)
+    video_url: str = ""
 
     def to_event(self) -> NormalizedEvent:
         return NormalizedEvent(type=EventType.AGENT_RESPONSE.value, payload=asdict(self))

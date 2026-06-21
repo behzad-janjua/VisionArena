@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI):
                 pass
 
 
-app = FastAPI(title="KiForge Arena Backend", lifespan=lifespan)
+app = FastAPI(title="Vision Arena Backend", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -242,6 +242,70 @@ def demo_recap() -> dict[str, Any]:
         "latest_prompt": latest_response.get("recap_prompt", ""),
         "latest_job": latest_response.get("recap_job", {}),
     }
+
+
+_RECAP_URL_FILE = os.path.join(os.path.dirname(__file__), "recap_url_cache.json")
+
+def _read_recap_url_file(player_id: str) -> dict:
+    try:
+        with open(_RECAP_URL_FILE) as f:
+            data = json.load(f)
+        return data.get(player_id, {})
+    except Exception:
+        return {}
+
+def _write_recap_url_file(player_id: str, url: str, job_id: str) -> None:
+    try:
+        try:
+            with open(_RECAP_URL_FILE) as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+        data[player_id] = {"url": url, "job_id": job_id}
+        with open(_RECAP_URL_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        log.warning("[recap] Could not write recap URL cache: %s", e)
+
+
+@app.get("/demo/recap/url")
+def demo_recap_url(player_id: str = "demo_player") -> dict[str, Any]:
+    """Poll this after a KO. Returns video_url once Pika finishes rendering (empty string until ready)."""
+    stored = _game_master.store.get_json(f"player:{player_id}:recap_url")
+    if not stored.get("url"):
+        stored = _read_recap_url_file(player_id)
+    return {
+        "video_url": stored.get("url", ""),
+        "job_id": stored.get("job_id", ""),
+        "ready": bool(stored.get("url")),
+    }
+
+
+@app.post("/demo/recap/set-url")
+def demo_recap_set_url(player_id: str = "demo_player", url: str = "", job_id: str = "mcp") -> dict[str, Any]:
+    """Inject a video URL manually (e.g. from Pika MCP generation). Unity polls /demo/recap/url to pick it up."""
+    if not url:
+        return {"status": "error", "detail": "url is required"}
+    _game_master.store.set_json(f"player:{player_id}:recap_url", {"url": url, "job_id": job_id})
+    _write_recap_url_file(player_id, url, job_id)
+    return {"status": "ok", "url": url, "player_id": player_id}
+
+
+@app.get("/demo/recap/pending-prompt")
+def demo_recap_pending_prompt(player_id: str = "demo_player") -> dict[str, Any]:
+    """Returns the most recent recap prompt so an external tool (e.g. Pika MCP) can generate the video."""
+    import json as _json
+    from pathlib import Path as _Path
+    queue_path = _Path(__file__).parent / "recap_jobs.jsonl"
+    if not queue_path.exists():
+        return {"prompt": "", "job_id": ""}
+    lines = [l for l in queue_path.read_text().splitlines() if l.strip()]
+    if not lines:
+        return {"prompt": "", "job_id": ""}
+    latest = _json.loads(lines[-1])
+    if latest.get("metadata", {}).get("player_id", player_id) != player_id:
+        return {"prompt": "", "job_id": ""}
+    return {"prompt": latest.get("prompt", ""), "job_id": latest.get("job_id", "")}
 
 
 @app.post("/demo/combat")

@@ -6,10 +6,10 @@ namespace KiForge.Scene
     [RequireComponent(typeof(Camera))]
     public sealed class ArenaCameraController : MonoBehaviour
     {
-        [SerializeField] private Vector3 lockedPosition = new Vector3(0f, 1.8f, -10f);
-        [SerializeField] private Quaternion lockedRotation = Quaternion.Euler(10f, 0f, 0f);
-        [SerializeField] private float orthographicSize = 3.5f;
-        [SerializeField] private Color backgroundColor = new Color(0.08f, 0.1f, 0.16f);
+        [SerializeField] private Vector3 lockedPosition = new Vector3(0f, 4.5f, -10f);
+        [SerializeField] private Quaternion lockedRotation = Quaternion.Euler(3f, 0f, 0f);
+        [SerializeField] private float orthographicSize = 5.5f;
+        [SerializeField] private Color backgroundColor = new Color(0.55f, 0.57f, 0.50f);
 
         public static ArenaCameraController Instance { get; private set; }
 
@@ -23,7 +23,7 @@ namespace KiForge.Scene
             cam = GetComponent<Camera>();
             cam.orthographic = true;
             cam.orthographicSize = orthographicSize;
-            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.clearFlags = CameraClearFlags.Skybox;
             cam.backgroundColor = backgroundColor;
             transform.position = lockedPosition;
             transform.rotation = lockedRotation;

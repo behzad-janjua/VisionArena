@@ -167,6 +167,7 @@ namespace KiForge.Input
                             bossAction    = msg.BossAction,
                             nextStrategy  = msg.NextStrategy,
                             recapPrompt   = msg.RecapPrompt,
+                            videoUrl      = msg.VideoUrl,
                             counterSuccess = msg.CounterSuccess,
                             survivalScore  = msg.SurvivalScore,
                             audioB64      = msg.AudioB64,
@@ -273,6 +274,7 @@ namespace KiForge.Input
             public string boss_action;
             public string next_strategy;
             public string recap_prompt;
+            public string video_url;
             public float counter_success;
             public float survival_score;
             public string audio_b64;
@@ -300,6 +302,7 @@ namespace KiForge.Input
             public string BossAction    => payload?.boss_action    ?? string.Empty;
             public string NextStrategy  => payload?.next_strategy  ?? string.Empty;
             public string RecapPrompt   => payload?.recap_prompt   ?? string.Empty;
+            public string VideoUrl      => payload?.video_url      ?? string.Empty;
             public float CounterSuccess => payload?.counter_success ?? 0f;
             public float SurvivalScore  => payload?.survival_score  ?? 0f;
             public string AudioB64      => payload?.audio_b64       ?? string.Empty;

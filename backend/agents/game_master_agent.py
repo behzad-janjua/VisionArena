@@ -5,7 +5,7 @@ from backend.agents.narrator_agent import NarratorAgent
 from backend.agents.recap_agent import RecapAgent
 from backend.fight_tracing import record_combat_span
 from backend.models import AgentResponse, CombatTelemetry
-from backend.pika_recap import FightHighlights, build_cinematic_prompt
+from backend.pika_recap import FightHighlights, build_cinematic_prompt, submit_and_poll
 from backend.player_memory import (
     build_player_profile,
     describe_adaptation,
@@ -84,10 +84,15 @@ class GameMasterAgent:
         adaptation = describe_adaptation(profile_after, strategy_weights)
         recap_prompt = build_cinematic_prompt(self.highlights)
         recap_job: dict = {}
+        is_ko = event.outcome in {"boss_ko", "player_ko", "match_end"} or event.boss_health_after <= 0
+
+        # On KO: submit the Pika recap video and start background URL polling.
+        if is_ko:
+            recap_job = submit_and_poll(recap_prompt, self.store, player_id, {"player_id": player_id})
 
         # Reset highlights and raw events on KO so the next match starts clean.
         # Profile is already saved above, so clearing events only affects future rounds.
-        if event.outcome in {"boss_ko", "player_ko", "match_end"} or event.boss_health_after <= 0:
+        if is_ko:
             self.highlights = FightHighlights()
             self.store.clear_match_events(player_id)
 

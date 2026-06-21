@@ -22,44 +22,39 @@ namespace KiForge.UI
             var go     = new GameObject("Damage Number Canvas");
             var canvas = go.AddComponent<Canvas>();
             canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 12;
-
-            var scaler = go.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode        = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight  = 0.5f;
-
+            canvas.sortingOrder = 26;
             go.AddComponent<GraphicRaycaster>();
             return canvas;
         }
 
         private void SpawnNumber(float dmg, bool isLeft)
         {
+            float sf = Screen.height / 1080f;
             var go = new GameObject("DmgNum");
             go.transform.SetParent(canvas.transform, false);
 
             var rt       = go.AddComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(200f, 70f);
+            rt.sizeDelta = new Vector2(200f * sf, 70f * sf);
 
-            float jitter = Random.Range(-22f, 22f);
+            float jitter = Random.Range(-22f, 22f) * sf;
             if (isLeft)
             {
                 rt.anchorMin        = new Vector2(0f, 1f);
                 rt.anchorMax        = new Vector2(0f, 1f);
                 rt.pivot            = new Vector2(0f, 0.5f);
-                rt.anchoredPosition = new Vector2(28f + jitter, -86f);
+                rt.anchoredPosition = new Vector2((28f + jitter) * sf, -86f * sf);
             }
             else
             {
                 rt.anchorMin        = new Vector2(1f, 1f);
                 rt.anchorMax        = new Vector2(1f, 1f);
                 rt.pivot            = new Vector2(1f, 0.5f);
-                rt.anchoredPosition = new Vector2(-28f + jitter, -86f);
+                rt.anchoredPosition = new Vector2((-28f + jitter) * sf, -86f * sf);
             }
 
             var txt                = go.AddComponent<Text>();
             txt.font               = ResolveFont();
-            txt.fontSize           = 42;
+            txt.fontSize           = Mathf.RoundToInt(42 * sf);
             txt.fontStyle          = FontStyle.Bold;
             txt.color              = DamageColor(dmg);
             txt.alignment          = isLeft ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight;

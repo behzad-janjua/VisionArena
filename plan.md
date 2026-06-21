@@ -1,8 +1,8 @@
-# KiForge Arena — Hackathon Build Plan
+# Vision Arena — Hackathon Build Plan
 
 ## Project Summary
 
-**Title:** KiForge Arena  
+**Title:** Vision Arena  
 **Main Track:** Ddoski’s Playground  
 **Core Pitch:** A real-time anime boss-fight game where your computer-vision hand gestures control movement and punch timing, and AI agents run the enemy, narrator, coach, and post-fight recap.
 
@@ -332,7 +332,7 @@ Post-fight boxing-style recap
 
 This is stronger than simply logging traces. The pitch should be:
 
-> KiForge Arena is not just an AI game. It is an observable AI opponent. Arize traces every decision, evaluates whether the boss countered the player effectively, and feeds those insights back into the EnemyAgent so the boss adapts between rounds.
+> Vision Arena is not just an AI game. It is an observable AI opponent. Arize traces every decision, evaluates whether the boss countered the player effectively, and feeds those insights back into the EnemyAgent so the boss adapts between rounds.
 
 ### What to Trace
 
@@ -834,7 +834,7 @@ Create:
 ## Repo Structure
 
 ```text
-kiforge-arena/
+vision-arena/
   Assets/
     Scripts/
       Bootstrap/
@@ -913,7 +913,7 @@ Include:
 
 ### Opening
 
-“We built KiForge Arena, a real-time anime boss fight controlled by muscle signals and computer vision.”
+“We built Vision Arena, a real-time anime boss fight controlled by muscle signals and computer vision.”
 
 ### Novelty
 

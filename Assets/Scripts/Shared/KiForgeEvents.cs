@@ -126,6 +126,7 @@ namespace KiForge.Shared
         public string bossAction;
         public string nextStrategy;
         public string recapPrompt;
+        public string videoUrl;
         public float counterSuccess;
         public float survivalScore;
         public string audioB64;
