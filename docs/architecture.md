@@ -96,6 +96,8 @@ flowchart TB
     AV <--> GM
 ```
 
+</details>
+
 ## Data flows
 
 ### 1. Vision / input → movement & punches
