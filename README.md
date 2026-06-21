@@ -26,28 +26,12 @@ hit), and an adaptive boss learns to counter you between exchanges.
 
 A Unity client and a FastAPI backend talk over a WebSocket (real-time events) and
 HTTP (agent decisions). A single `KiForgeArenaBootstrap` builds the whole arena at
-runtime. **See [`docs/architecture.md`](docs/architecture.md) for the full diagram
-and data flows.**
+runtime.
 
-```mermaid
-flowchart LR
-    subgraph IN["Inputs"]
-        CAM["Webcam / MYO / Keyboard"]
-    end
-    subgraph U["Unity Client"]
-        BUS["EventBus → Combat + UI"]
-    end
-    subgraph B["FastAPI Backend"]
-        GM["GameMasterAgent<br/>enemy · narrator · recap"]
-    end
-    subgraph E["Sponsor Services"]
-        SVC["Redis · Arize · Pika<br/>Deepgram · Vapi · ASI:One"]
-    end
-    CAM -->|vision_bridge| B
-    B -->|WebSocket POSE/NARRATION| U
-    U -->|HTTP /agent/combat| GM
-    GM <--> E
-```
+![Vision Arena architecture](docs/architecture-diagram.svg)
+
+**See [`docs/architecture.md`](docs/architecture.md) for the detailed data flows and
+a text (Mermaid) version of this diagram.**
 
 ## Project layout
 

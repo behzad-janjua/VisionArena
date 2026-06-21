@@ -17,6 +17,11 @@ playable with zero API keys; live services are layered on progressively.
 
 ## System diagram
 
+![Vision Arena architecture](architecture-diagram.svg)
+
+<details>
+<summary>Text (Mermaid) version of the diagram</summary>
+
 ```mermaid
 flowchart TB
     subgraph Inputs["🕹️ Player Inputs"]
