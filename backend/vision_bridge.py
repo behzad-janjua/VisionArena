@@ -11,25 +11,28 @@ from .models import EventType, NormalizedEvent
 
 log = logging.getLogger(__name__)
 
-# GestureRecognizer model (bundles hand landmarker + canonical gesture classifier).
-_MODEL_PATH = os.path.join(os.path.dirname(__file__), "gesture_recognizer.task")
+_POSE_MODEL_PATH = os.path.join(os.path.dirname(__file__), "pose_landmarker_lite.task")
 
-# MediaPipe canonical gesture labels -> the game gestures we care about for this test.
-_GESTURE_MAP = {
-    "Closed_Fist": "fist",       # -> punch
-    "Open_Palm": "open_palm",    # -> walk forward
-}
+_TARGET_FPS   = int(os.getenv("CV_TARGET_FPS",    "30") or 30)
+_CAMERA_INDEX = int(os.getenv("CV_CAMERA_INDEX",   "0") or 0)
 
-_TARGET_FPS = int(os.getenv("CV_TARGET_FPS", "30") or 30)
-_CAMERA_INDEX = int(os.getenv("CV_CAMERA_INDEX", "0") or 0)
+# Tuning — override via env vars if your room / distance differs
+_PUNCH_DEPTH_M = float(os.getenv("CV_PUNCH_DEPTH", "0.22"))  # metres wrist extends past shoulder
+_GUARD_Y_PAD   = float(os.getenv("CV_GUARD_PAD",   "0.04"))  # wrists must clear nose by this much
+_WALK_LEAN     = float(os.getenv("CV_WALK_LEAN",   "0.10"))  # hip-centre x offset from 0.5
 
-# Mock loop (no camera): a few open-palm frames (walk) then a fist (punch) then rest.
+# MediaPipe Pose landmark indices
+_NOSE = 0
+_L_SHOULDER, _R_SHOULDER = 11, 12
+_L_WRIST,    _R_WRIST    = 15, 16
+_L_HIP,      _R_HIP      = 23, 24
+
 _MOCK_SEQUENCE = [
-    {"gesture": "open_palm", "hand": {"x": 0.55, "y": 0.45}, "confidence": 0.95},
-    {"gesture": "open_palm", "hand": {"x": 0.55, "y": 0.45}, "confidence": 0.95},
-    {"gesture": "open_palm", "hand": {"x": 0.55, "y": 0.45}, "confidence": 0.95},
-    {"gesture": "fist", "hand": {"x": 0.52, "y": 0.48}, "confidence": 0.95},
-    {"gesture": "none", "hand": {"x": 0.50, "y": 0.50}, "confidence": 0.50},
+    {"gesture": "none",        "confidence": 0.8,  "hand": {"x": 0.5, "y": 0.5}, "bodyCenter": {"x": 0.5,  "y": 0.5}},
+    {"gesture": "walk_right",  "confidence": 0.8,  "hand": {"x": 0.4, "y": 0.5}, "bodyCenter": {"x": 0.42, "y": 0.5}},
+    {"gesture": "right_punch", "confidence": 0.85, "hand": {"x": 0.3, "y": 0.5}, "bodyCenter": {"x": 0.5,  "y": 0.5}},
+    {"gesture": "guard",       "confidence": 0.9,  "hand": {"x": 0.5, "y": 0.3}, "bodyCenter": {"x": 0.5,  "y": 0.5}},
+    {"gesture": "none",        "confidence": 0.8,  "hand": {"x": 0.5, "y": 0.5}, "bodyCenter": {"x": 0.5,  "y": 0.5}},
 ]
 
 
@@ -39,48 +42,90 @@ def _make_event(payload: dict) -> NormalizedEvent:
 
 def _try_import_deps():
     try:
-        import cv2  # noqa: F401
+        import cv2
         from mediapipe.tasks.python.core.base_options import BaseOptions
         from mediapipe.tasks.python.vision import (
-            GestureRecognizer,
-            GestureRecognizerOptions,
+            PoseLandmarker,
+            PoseLandmarkerOptions,
             RunningMode,
         )
-
-        return cv2, GestureRecognizer, GestureRecognizerOptions, RunningMode, BaseOptions
+        return cv2, PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions
     except ImportError as e:
         log.warning("[CV] import failed: %s", e)
         return None, None, None, None, None
 
 
+def _detect_gesture(norm_lms, world_lms) -> tuple[str, float]:
+    """Map body pose landmarks to a game gesture.
+
+    Coordinate system notes (MediaPipe):
+      norm_lms:  x ∈ [0,1] left→right of camera frame, y ∈ [0,1] top→bottom
+      world_lms: x/y/z in metres; z: SMALLER value = closer to camera
+
+    Camera is NOT mirrored: person's RIGHT arm appears at LOW x in frame.
+
+    Gesture priority: guard > heavy_punch > right_punch > left_punch > walk > none
+    """
+    nose    = norm_lms[_NOSE]
+    r_wrist = norm_lms[_R_WRIST]
+    l_wrist = norm_lms[_L_WRIST]
+    l_hip   = norm_lms[_L_HIP]
+    r_hip   = norm_lms[_R_HIP]
+
+    rw_w = world_lms[_R_WRIST];   rs_w = world_lms[_R_SHOULDER]
+    lw_w = world_lms[_L_WRIST];   ls_w = world_lms[_L_SHOULDER]
+
+    mid_hip_x = (l_hip.x + r_hip.x) / 2.0
+
+    # Guard: both wrists raised above nose level
+    if r_wrist.y < nose.y - _GUARD_Y_PAD and l_wrist.y < nose.y - _GUARD_Y_PAD:
+        return "guard", 0.9
+
+    # Punch: wrist extends toward camera → z becomes more negative relative to shoulder
+    r_depth_delta = rw_w.z - rs_w.z  # negative when right arm jabs toward camera
+    l_depth_delta = lw_w.z - ls_w.z  # negative when left arm jabs toward camera
+
+    r_punching = r_depth_delta < -_PUNCH_DEPTH_M
+    l_punching = l_depth_delta < -_PUNCH_DEPTH_M
+
+    if r_punching and l_punching:
+        return "heavy_punch", 0.9
+    if r_punching:
+        return "right_punch", 0.85
+    if l_punching:
+        return "left_punch", 0.85
+
+    # Walk: hip-centre lean (camera-left = person's right = walk_right in game world)
+    lean = mid_hip_x - 0.5
+    if lean < -_WALK_LEAN:
+        return "walk_right", min(0.9, 0.7 + abs(lean) * 2)
+    if lean > _WALK_LEAN:
+        return "walk_left", min(0.9, 0.7 + abs(lean) * 2)
+
+    return "none", 0.6
+
+
 def _extract_payload(result) -> dict | None:
-    if not result.gestures:
+    if not result.pose_landmarks:
         return None
-
-    top = result.gestures[0][0]  # first hand, highest-score category
-    gesture = _GESTURE_MAP.get(top.category_name, "none")
-
-    # Approximate hand center from the wrist landmark (index 0) when available.
-    hand_x, hand_y = 0.5, 0.5
-    if result.hand_landmarks:
-        wrist = result.hand_landmarks[0][0]
-        hand_x, hand_y = wrist.x, 1.0 - wrist.y
-
+    norm_lms  = result.pose_landmarks[0]
+    world_lms = result.pose_world_landmarks[0]
+    gesture, confidence = _detect_gesture(norm_lms, world_lms)
+    mid_hip_x = (norm_lms[_L_HIP].x + norm_lms[_R_HIP].x) / 2.0
+    mid_hip_y = (norm_lms[_L_HIP].y + norm_lms[_R_HIP].y) / 2.0
     return {
-        "gesture": gesture,
-        "hand": {"x": float(hand_x), "y": float(hand_y)},
-        "confidence": float(top.score),
+        "gesture":    gesture,
+        "confidence": float(confidence),
+        "hand":       {"x": float(norm_lms[_R_WRIST].x), "y": float(1.0 - norm_lms[_R_WRIST].y)},
+        "bodyCenter": {"x": float(mid_hip_x),             "y": float(1.0 - mid_hip_y)},
     }
 
 
-def _blocking_init(GestureRecognizer, GestureRecognizerOptions, RunningMode, BaseOptions):
+def _blocking_init(PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions):
     import cv2
-
     cap = cv2.VideoCapture(_CAMERA_INDEX)
     if not cap.isOpened():
         raise RuntimeError(f"Camera index {_CAMERA_INDEX} not available")
-
-    # Warm up and verify we can actually read (triggers macOS permission check)
     for _ in range(10):
         ret, _ = cap.read()
         if ret:
@@ -91,39 +136,43 @@ def _blocking_init(GestureRecognizer, GestureRecognizerOptions, RunningMode, Bas
             "Camera opened but cannot read frames — grant Camera permission to Terminal "
             "in System Settings > Privacy & Security > Camera"
         )
-
-    options = GestureRecognizerOptions(
-        base_options=BaseOptions(model_asset_path=_MODEL_PATH),
+    options = PoseLandmarkerOptions(
+        base_options=BaseOptions(model_asset_path=_POSE_MODEL_PATH),
         running_mode=RunningMode.VIDEO,
-        num_hands=1,
+        num_poses=1,
     )
-    recognizer = GestureRecognizer.create_from_options(options)
-    return cap, recognizer
+    landmarker = PoseLandmarker.create_from_options(options)
+    return cap, landmarker
 
 
-def _blocking_capture(cap, recognizer) -> dict | None:
+def _blocking_capture(cap, landmarker) -> dict | None:
     import cv2
     from mediapipe import Image, ImageFormat
-
     ret, frame = cap.read()
     if not ret:
         return None
-
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_img = Image(image_format=ImageFormat.SRGB, data=rgb)
-    timestamp_ms = int(time() * 1000)
-    result = recognizer.recognize_for_video(mp_img, timestamp_ms)
+    result = landmarker.detect_for_video(mp_img, int(time() * 1000))
     return _extract_payload(result)
 
 
 async def vision_bridge_stream() -> AsyncIterator[NormalizedEvent]:
     """
-    Yields POSE_UPDATE events carrying a recognized hand gesture.
+    Yields POSE_UPDATE events from full-body pose tracking (MediaPipe PoseLandmarker).
 
-    Closed fist -> "fist" (punch), open palm -> "open_palm" (walk forward).
-    Falls back to a looping mock gesture stream when the camera or model is missing.
+    Gestures emitted:
+      right_punch  — extend right arm toward camera (jab)
+      left_punch   — extend left arm toward camera
+      heavy_punch  — extend both arms simultaneously
+      guard        — raise both wrists above nose level
+      walk_right   — lean body to your right (toward the boss)
+      walk_left    — lean body to your left (away from boss)
+      none         — neutral / no clear gesture
+
+    Falls back to a looping mock stream when camera or model is unavailable.
     """
-    cv2, GestureRecognizer, GestureRecognizerOptions, RunningMode, BaseOptions = _try_import_deps()
+    cv2, PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions = _try_import_deps()
 
     if cv2 is None:
         log.warning("[CV] mediapipe/opencv not available — using mock gesture stream")
@@ -131,8 +180,8 @@ async def vision_bridge_stream() -> AsyncIterator[NormalizedEvent]:
             yield evt
         return
 
-    if not os.path.exists(_MODEL_PATH):
-        log.warning("[CV] Model file not found at %s — using mock gesture stream", _MODEL_PATH)
+    if not os.path.exists(_POSE_MODEL_PATH):
+        log.warning("[CV] Pose model not found at %s — using mock stream", _POSE_MODEL_PATH)
         async for evt in _mock_stream():
             yield evt
         return
@@ -140,20 +189,23 @@ async def vision_bridge_stream() -> AsyncIterator[NormalizedEvent]:
     executor = ThreadPoolExecutor(max_workers=1)
     loop = asyncio.get_event_loop()
     try:
-        cap, recognizer = await loop.run_in_executor(
-            executor, _blocking_init, GestureRecognizer, GestureRecognizerOptions, RunningMode, BaseOptions
+        cap, landmarker = await loop.run_in_executor(
+            executor, _blocking_init, PoseLandmarker, PoseLandmarkerOptions, RunningMode, BaseOptions
         )
     except Exception as exc:
-        log.warning("[CV] Camera unavailable (%s) — using mock gesture stream", exc)
+        log.warning("[CV] Camera unavailable (%s) — mock stream", exc)
         executor.shutdown(wait=False)
         async for evt in _mock_stream():
             yield evt
         return
 
-    log.info("[CV] Webcam opened — MediaPipe GestureRecognizer running (fist=punch, open palm=walk)")
+    log.info(
+        "[CV] Full-body tracker running — jab toward camera=punch | "
+        "raise hands=guard | lean=walk"
+    )
     try:
         while True:
-            payload = await loop.run_in_executor(executor, _blocking_capture, cap, recognizer)
+            payload = await loop.run_in_executor(executor, _blocking_capture, cap, landmarker)
             if payload:
                 yield _make_event(payload)
     finally:
@@ -165,9 +217,6 @@ async def _mock_stream() -> AsyncIterator[NormalizedEvent]:
     frame_delay = 1.0 / _TARGET_FPS
     i = 0
     while True:
-        # Hold each mock gesture for ~0.5s so the punch edge-trigger is visible.
-        # Flag every frame as synthetic so the Unity client won't let canned gestures
-        # seize control from the keyboard when no real camera is attached.
         payload = {**_MOCK_SEQUENCE[(i // 15) % len(_MOCK_SEQUENCE)], "mock": True}
         yield _make_event(payload)
         i += 1

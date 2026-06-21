@@ -65,7 +65,7 @@ namespace KiForge.Bootstrap
                 backend.Initialize(eventBus);
 
                 var cvAim = player.AddComponent<CvAimController>();
-                cvAim.Initialize(eventBus, player.transform, playerFighter, playerWalk, playerInput, -4.5f, 4.5f);
+                cvAim.Initialize(eventBus, player.transform, playerFighter, playerWalk, playerInput, myo, -4.5f, 4.5f);
 
                 // On-screen CV link/gesture status pill (top-center).
                 var cvStatus = new GameObject("CV Status").AddComponent<CvStatusUI>();
