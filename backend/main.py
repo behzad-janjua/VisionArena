@@ -231,6 +231,7 @@ def demo_leaderboard(limit: int = 10) -> dict[str, Any]:
 def demo_reset(player_id: str = "demo_player") -> dict[str, str]:
     """Clear match events and highlights so a new match starts with a clean slate."""
     _game_master.reset_match(player_id)
+    _clear_recap_url(player_id)
     return {"status": "reset", "player_id": player_id}
 
 
@@ -267,6 +268,17 @@ def _write_recap_url_file(player_id: str, url: str, job_id: str) -> None:
     except Exception as e:
         log.warning("[recap] Could not write recap URL cache: %s", e)
 
+def _clear_recap_url(player_id: str) -> None:
+    _game_master.store.set_json(f"player:{player_id}:recap_url", {})
+    try:
+        with open(_RECAP_URL_FILE) as f:
+            data = json.load(f)
+        data.pop(player_id, None)
+        with open(_RECAP_URL_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
 
 @app.get("/demo/recap/url")
 def demo_recap_url(player_id: str = "demo_player") -> dict[str, Any]:
@@ -293,9 +305,11 @@ def demo_recap_set_url(player_id: str = "demo_player", url: str = "", job_id: st
 
 @app.get("/demo/recap/pending-prompt")
 def demo_recap_pending_prompt(player_id: str = "demo_player") -> dict[str, Any]:
-    """Returns the most recent fight-specific cinematic recap prompt for external video generation."""
+    """Returns the fight-specific cinematic prompt and clears the old URL so Unity shows 'Generating…' again."""
     state = _game_master.demo_state(player_id)
     prompt = state["latest_response"].get("recap_prompt", "")
+    if prompt:
+        _clear_recap_url(player_id)
     return {"prompt": prompt, "player_id": player_id}
 
 
