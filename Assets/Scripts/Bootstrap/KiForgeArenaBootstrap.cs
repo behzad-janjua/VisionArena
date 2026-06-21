@@ -108,6 +108,7 @@ namespace KiForge.Bootstrap
                 telemetryRecorder.Initialize(eventBus);
 
                 // --- Damage resolution: typed damage, blocking cuts it to 30% ---
+                ArizeCoachFeedback coach = null;
                 playerFighter.Impact += (src, tgt) =>
                 {
                     if (bossHealth.IsDefeated) return;
@@ -117,6 +118,7 @@ namespace KiForge.Bootstrap
                     var dmg = ResolveDamage(playerFighter.LastAttack, blocked);
                     bossHealth.ApplyDamage(dmg);
                     bossFighter.PlayPain();
+                    coach?.RecordPlayerLanded(playerFighter.LastAttack, blocked);
 
                     round++;
                     var outcome = bossHealth.IsDefeated ? "boss_ko"
@@ -150,6 +152,7 @@ namespace KiForge.Bootstrap
                     var dmg = ResolveDamage(bossFighter.LastAttack, blocked);
                     playerHealth.ApplyDamage(dmg);
                     playerFighter.PlayPain();
+                    coach?.RecordPlayerTookHit();
 
                     round++;
                     var outcome2 = playerHealth.IsDefeated ? "player_ko"
@@ -207,7 +210,7 @@ namespace KiForge.Bootstrap
                 fightLab.Setup();
 
                 // --- Coach overlay: live Arize-style eval + coaching tip (top-left) ---
-                var coach = new GameObject("ArizeCoachFeedback").AddComponent<ArizeCoachFeedback>();
+                coach = new GameObject("ArizeCoachFeedback").AddComponent<ArizeCoachFeedback>();
                 coach.Initialize(playerInput, () => bossBrain.CurrentDecision);
             }
         }

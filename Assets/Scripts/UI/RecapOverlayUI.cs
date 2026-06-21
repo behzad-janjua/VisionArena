@@ -11,12 +11,14 @@ namespace KiForge.UI
     /// </summary>
     public sealed class RecapOverlayUI : MonoBehaviour
     {
-        private const string PollEndpoint = "http://127.0.0.1:8000/demo/recap/url?player_id=demo_player";
+        private const string PollEndpoint       = "http://127.0.0.1:8000/demo/recap/url?player_id=demo_player";
+        private const string HighlightsEndpoint = "http://127.0.0.1:8000/demo/recap/highlights";
         private const float  PollInterval  = 5f;
-        private const float  PollTimeout   = 180f; // give up after 3 min
+        private const float  PollTimeout   = 180f;
 
         private Canvas  canvas;
         private Text    statusText;
+        private Text    highlightsText;
         private Button  watchButton;
         private Text    watchLabel;
         private bool    shown;
@@ -32,7 +34,43 @@ namespace KiForge.UI
             shown = true;
             canvas.gameObject.SetActive(true);
             statusText.text = playerWon ? "VICTORY" : "DEFEATED";
+            StartCoroutine(FetchHighlights());
             StartCoroutine(PollForUrl());
+        }
+
+        private IEnumerator FetchHighlights()
+        {
+            yield return new WaitForSeconds(0.5f); // small delay so backend has written the summary
+            var req = UnityWebRequest.Get(HighlightsEndpoint);
+            yield return req.SendWebRequest();
+            if (req.result == UnityWebRequest.Result.Success && highlightsText != null)
+            {
+                var h = JsonUtility.FromJson<HighlightsSummary>(req.downloadHandler.text);
+                var label = BuildHighlightsLabel(h);
+                highlightsText.text = label;
+                highlightsText.gameObject.SetActive(!string.IsNullOrEmpty(label));
+            }
+            req.Dispose();
+        }
+
+        private static string BuildHighlightsLabel(HighlightsSummary h)
+        {
+            if (h == null || h.rounds <= 0) return "";
+
+            var lines = new System.Collections.Generic.List<string>();
+            lines.Add("Compiling from this fight:");
+
+            if (!string.IsNullOrEmpty(h.first_blood?.move))
+                lines.Add($"  First Blood  ·  Rd {h.first_blood.round}  ·  {h.first_blood.move}  ({h.first_blood.dmg} dmg)");
+
+            if (!string.IsNullOrEmpty(h.biggest_hit?.move) && h.biggest_hit.dmg > (h.first_blood?.dmg ?? 0))
+                lines.Add($"  Biggest Hit  ·  Rd {h.biggest_hit.round}  ·  {h.biggest_hit.move}  ({h.biggest_hit.dmg} dmg)");
+
+            if (!string.IsNullOrEmpty(h.ko_blow?.move))
+                lines.Add($"  KO Blow      ·  Rd {h.ko_blow.round}  ·  {h.ko_blow.move}");
+
+            lines.Add($"  {h.rounds} rounds  ·  {h.total_dmg} total dmg");
+            return string.Join("\n", lines);
         }
 
         private IEnumerator PollForUrl()
@@ -47,21 +85,25 @@ namespace KiForge.UI
                 yield return new WaitForSeconds(PollInterval);
                 elapsed += PollInterval;
 
-                using var req = UnityWebRequest.Get(PollEndpoint);
+                var req = UnityWebRequest.Get(PollEndpoint);
                 yield return req.SendWebRequest();
 
                 if (req.result == UnityWebRequest.Result.Success)
                 {
                     var data = JsonUtility.FromJson<RecapUrlResponse>(req.downloadHandler.text);
+                    req.Dispose();
                     if (data != null && data.ready && !string.IsNullOrEmpty(data.video_url))
                     {
                         ShowWatchButton(data.video_url);
                         yield break;
                     }
                 }
+                else
+                {
+                    req.Dispose();
+                }
             }
 
-            // Timed out — hide the generating label silently
             if (generatingGO != null) generatingGO.gameObject.SetActive(false);
         }
 
@@ -117,18 +159,35 @@ namespace KiForge.UI
             statusOutline.effectColor = new Color(0f, 0f, 0f, 0.9f);
             statusOutline.effectDistance = new Vector2(2f, -2f);
 
+            // Highlights breakdown (which fight moments feed the video)
+            var hlGO  = new GameObject("HighlightsLabel");
+            hlGO.transform.SetParent(panelGO.transform, false);
+            var hlRT  = hlGO.AddComponent<RectTransform>();
+            hlRT.anchorMin        = new Vector2(0f, 1f);
+            hlRT.anchorMax        = new Vector2(1f, 1f);
+            hlRT.pivot            = new Vector2(0.5f, 1f);
+            hlRT.anchoredPosition = new Vector2(0f, -(60f * sf));
+            hlRT.sizeDelta        = new Vector2(0f, 90f * sf);
+            highlightsText        = hlGO.AddComponent<Text>();
+            highlightsText.font   = ResolveFont();
+            highlightsText.fontSize = Mathf.RoundToInt(11 * sf);
+            highlightsText.alignment = TextAnchor.UpperLeft;
+            highlightsText.color  = new Color(0.65f, 0.95f, 1f, 0.85f);
+            highlightsText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            highlightsText.verticalOverflow   = VerticalWrapMode.Overflow;
+
             // "Generating highlight…" label
             var genGO  = new GameObject("Generating");
             genGO.transform.SetParent(panelGO.transform, false);
             var genRT  = genGO.AddComponent<RectTransform>();
-            genRT.anchorMin        = new Vector2(0f, 0.5f);
-            genRT.anchorMax        = new Vector2(1f, 0.5f);
-            genRT.pivot            = new Vector2(0.5f, 0.5f);
-            genRT.anchoredPosition = new Vector2(0f, 10f * sf);
-            genRT.sizeDelta        = new Vector2(0f, 28f * sf);
+            genRT.anchorMin        = new Vector2(0f, 0f);
+            genRT.anchorMax        = new Vector2(1f, 0f);
+            genRT.pivot            = new Vector2(0.5f, 0f);
+            genRT.anchoredPosition = new Vector2(0f, 22f * sf);
+            genRT.sizeDelta        = new Vector2(0f, 22f * sf);
             var genTxt             = genGO.AddComponent<Text>();
             genTxt.font            = ResolveFont();
-            genTxt.fontSize        = Mathf.RoundToInt(16 * sf);
+            genTxt.fontSize        = Mathf.RoundToInt(14 * sf);
             genTxt.alignment       = TextAnchor.MiddleCenter;
             genTxt.color           = new Color(0.75f, 0.75f, 0.75f, 0.9f);
             genTxt.text            = "Generating highlight reel…";
@@ -180,6 +239,25 @@ namespace KiForge.UI
             public string video_url;
             public string job_id;
             public bool   ready;
+        }
+
+        [System.Serializable]
+        private sealed class HighlightMoment
+        {
+            public int    round;
+            public string move;
+            public int    dmg;
+        }
+
+        [System.Serializable]
+        private sealed class HighlightsSummary
+        {
+            public HighlightMoment first_blood;
+            public HighlightMoment biggest_hit;
+            public HighlightMoment ko_blow;
+            public int             rounds;
+            public int             total_dmg;
+            public bool            player_won;
         }
     }
 }

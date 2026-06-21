@@ -59,6 +59,7 @@ class GameMasterAgent:
         self.highlights = FightHighlights()
         self.events: list[CombatTelemetry] = []
         self.latest_response: AgentResponse | None = None
+        self.last_highlights_summary: dict = {}
         self.match_id = "demo_match"
 
     def handle_combat_event(self, event: CombatTelemetry, player_id: str = "demo_player") -> AgentResponse:
@@ -93,6 +94,18 @@ class GameMasterAgent:
         # Reset highlights and raw events on KO so the next match starts clean.
         # Profile is already saved above, so clearing events only affects future rounds.
         if is_ko:
+            h = self.highlights
+            def _hl(ev, name):
+                return {"round": ev.round, "move": name, "dmg": ev.damage_dealt_by_player} if ev else None
+            self.last_highlights_summary = {
+                "first_blood":      _hl(h.first_blood,      h.first_blood_name),
+                "biggest_hit":      _hl(h.biggest_hit,      h.biggest_hit_name),
+                "heaviest_charged": _hl(h.heaviest_charged, h.heaviest_charged_name),
+                "ko_blow":          _hl(h.ko_blow,          h.ko_blow_name),
+                "rounds":           h.rounds_played,
+                "total_dmg":        h.total_player_dmg,
+                "player_won":       h.player_won,
+            }
             self.highlights = FightHighlights()
             self.store.clear_match_events(player_id)
 

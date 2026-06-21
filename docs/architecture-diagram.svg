@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .band   { fill-opacity:.35; stroke-width:1; rx:14; }
+      .lbl    { font-size:12px; font-weight:700; letter-spacing:.08em; fill:#64748b; }
+      .node   { rx:9; stroke-width:1.5; }
+      .nt     { font-size:13px; font-weight:600; fill:#0f172a; text-anchor:middle; }
+      .ns     { font-size:11px; fill:#475569; text-anchor:middle; }
+      .edge   { stroke:#475569; stroke-width:1.6; fill:none; }
+      .edged  { stroke:#475569; stroke-width:1.6; fill:none; stroke-dasharray:5 4; }
+      .et     { font-size:10.5px; fill:#334155; text-anchor:middle; }
+      .etbg   { fill:#ffffff; fill-opacity:.85; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="760" fill="#f8fafc"/>
+  <text x="28" y="36" font-size="20" font-weight="800" fill="#0f172a">Vision Arena — System Architecture</text>
+  <text x="28" y="56" font-size="12.5" fill="#64748b">Computer-vision gestures + MYO armband + AI agents · Unity client ⇄ FastAPI backend ⇄ sponsor services</text>
+
+  <!-- ===================== BANDS ===================== -->
+  <rect class="band" x="24" y="74"  width="1232" height="84"  fill="#fef3c7" stroke="#f59e0b"/>
+  <text class="lbl" x="40" y="94">PLAYER INPUTS</text>
+  <rect class="band" x="24" y="178" width="1232" height="200" fill="#dbeafe" stroke="#3b82f6"/>
+  <text class="lbl" x="40" y="198">UNITY CLIENT — KiForgeArenaBootstrap</text>
+  <rect class="band" x="24" y="408" width="1232" height="150" fill="#ede9fe" stroke="#8b5cf6"/>
+  <text class="lbl" x="40" y="428">FASTAPI BACKEND (backend/)</text>
+  <rect class="band" x="24" y="588" width="1232" height="92"  fill="#dcfce7" stroke="#22c55e"/>
+  <text class="lbl" x="40" y="608">EXTERNAL / SPONSOR SERVICES</text>
+
+  <!-- ===================== INPUT NODES ===================== -->
+  <g>
+    <rect class="node" x="60"   y="104" width="180" height="42" fill="#fffbeb" stroke="#f59e0b"/>
+    <text class="nt" x="150" y="130">📷 Webcam · MediaPipe</text>
+    <rect class="node" x="268"  y="104" width="180" height="42" fill="#fffbeb" stroke="#f59e0b"/>
+    <text class="nt" x="358" y="130">💪 MYO EMG armband</text>
+    <rect class="node" x="476"  y="104" width="170" height="42" fill="#fffbeb" stroke="#f59e0b"/>
+    <text class="nt" x="561" y="130">⌨️ Keyboard</text>
+    <rect class="node" x="1040" y="104" width="200" height="42" fill="#fffbeb" stroke="#f59e0b"/>
+    <text class="nt" x="1140" y="130">📱 Player's phone</text>
+  </g>
+
+  <!-- ===================== UNITY NODES ===================== -->
+  <g>
+    <rect class="node" x="60"  y="210" width="190" height="44" fill="#eff6ff" stroke="#3b82f6"/>
+    <text class="nt" x="155" y="232">KiForgeEventBus</text>
+    <text class="ns" x="155" y="248">in-game event hub</text>
+
+    <rect class="node" x="60"  y="296" width="190" height="44" fill="#eff6ff" stroke="#3b82f6"/>
+    <text class="nt" x="155" y="318">BackendEventReceiver</text>
+    <text class="ns" x="155" y="334">WebSocket client</text>
+
+    <rect class="node" x="300" y="210" width="180" height="44" fill="#eff6ff" stroke="#3b82f6"/>
+    <text class="nt" x="390" y="232">CvAim · MyoCharge</text>
+    <text class="ns" x="390" y="248">palm=walk · fist=punch</text>
+
+    <rect class="node" x="300" y="296" width="180" height="56" fill="#eff6ff" stroke="#3b82f6"/>
+    <text class="nt" x="390" y="320">Combat</text>
+    <text class="ns" x="390" y="338">Player/Boss + damage</text>
+
+    <rect class="node" x="540" y="284" width="180" height="56" fill="#eff6ff" stroke="#3b82f6"/>
+    <text class="nt" x="630" y="308">BackendBossAgent</text>
+    <text class="ns" x="630" y="326">drives boss (HTTP)</text>
+
+    <rect class="node" x="770" y="210" width="210" height="44" fill="#eff6ff" stroke="#3b82f6"/>
+    <text class="nt" x="875" y="232">MatchTelemetryRecorder</text>
+    <text class="ns" x="875" y="248">posts every hit</text>
+
+    <rect class="node" x="770" y="296" width="210" height="56" fill="#eff6ff" stroke="#3b82f6"/>
+    <text class="nt" x="875" y="320">UI overlays</text>
+    <text class="ns" x="875" y="338">HUD · narration · panels</text>
+
+    <rect class="node" x="1040" y="284" width="200" height="56" fill="#eff6ff" stroke="#3b82f6"/>
+    <text class="nt" x="1140" y="308">BossCallUI</text>
+    <text class="ns" x="1140" y="326">phone-number entry</text>
+  </g>
+
+  <!-- ===================== BACKEND NODES ===================== -->
+  <g>
+    <rect class="node" x="60"  y="448" width="190" height="62" fill="#f5f3ff" stroke="#8b5cf6"/>
+    <text class="nt" x="155" y="474">/ws/unity</text>
+    <text class="ns" x="155" y="492">WebSocket hub</text>
+
+    <rect class="node" x="300" y="448" width="180" height="62" fill="#f5f3ff" stroke="#8b5cf6"/>
+    <text class="nt" x="390" y="474">vision_bridge</text>
+    <text class="ns" x="390" y="492">cv_check · MediaPipe</text>
+
+    <rect class="node" x="540" y="442" width="260" height="74" fill="#f5f3ff" stroke="#8b5cf6"/>
+    <text class="nt" x="670" y="470">GameMasterAgent</text>
+    <text class="ns" x="670" y="488">Enemy · Narrator · Recap</text>
+    <text class="ns" x="670" y="504">+ Arize span / Redis memory</text>
+
+    <rect class="node" x="840" y="448" width="220" height="62" fill="#f5f3ff" stroke="#8b5cf6"/>
+    <text class="nt" x="950" y="474">Adapters</text>
+    <text class="ns" x="950" y="492">vapi · deepgram · pika</text>
+  </g>
+
+  <!-- ===================== EXTERNAL NODES ===================== -->
+  <g>
+    <rect class="node" x="60"   y="618" width="150" height="46" fill="#f0fdf4" stroke="#22c55e"/>
+    <text class="nt" x="135" y="640">Redis Stack</text>
+    <text class="ns" x="135" y="656">memory · KNN</text>
+    <rect class="node" x="244"  y="618" width="150" height="46" fill="#f0fdf4" stroke="#22c55e"/>
+    <text class="nt" x="319" y="640">Arize</text>
+    <text class="ns" x="319" y="656">trace / eval</text>
+    <rect class="node" x="428"  y="618" width="150" height="46" fill="#f0fdf4" stroke="#22c55e"/>
+    <text class="nt" x="503" y="640">Pika</text>
+    <text class="ns" x="503" y="656">recap video</text>
+    <rect class="node" x="612"  y="618" width="160" height="46" fill="#f0fdf4" stroke="#22c55e"/>
+    <text class="nt" x="692" y="640">Deepgram</text>
+    <text class="ns" x="692" y="656">commentator TTS</text>
+    <rect class="node" x="806"  y="618" width="150" height="46" fill="#f0fdf4" stroke="#22c55e"/>
+    <text class="nt" x="881" y="640">Vapi</text>
+    <text class="ns" x="881" y="656">outbound call</text>
+    <rect class="node" x="990"  y="618" width="250" height="46" fill="#f0fdf4" stroke="#22c55e"/>
+    <text class="nt" x="1115" y="640">ASI:One / Fetch.ai Agentverse</text>
+    <text class="ns" x="1115" y="656">LLM · agent chat</text>
+  </g>
+
+  <!-- ===================== EDGES ===================== -->
+  <!-- inputs -> -->
+  <path class="edge" d="M150,146 L355,448" marker-end="url(#arr)"/>
+  <rect class="etbg" x="214" y="290" width="46" height="15"/><text class="et" x="237" y="301">frames</text>
+
+  <path class="edge" d="M358,146 L390,208" marker-end="url(#arr)"/>
+  <path class="edge" d="M561,146 L472,294" marker-end="url(#arr)"/>
+  <rect class="etbg" x="486" y="214" width="50" height="15"/><text class="et" x="511" y="225">fallback</text>
+
+  <!-- backend internal: vision_bridge -> ws -->
+  <path class="edge" d="M300,479 L252,479" marker-end="url(#arr)"/>
+  <rect class="etbg" x="236" y="462" width="78" height="15"/><text class="et" x="275" y="473">POSE_UPDATE</text>
+
+  <!-- ws -> receiver (up) -->
+  <path class="edge" d="M155,448 L155,342" marker-end="url(#arr)"/>
+  <rect class="etbg" x="116" y="392" width="84" height="28"/>
+  <text class="et" x="158" y="402">WebSocket:</text><text class="et" x="158" y="414">POSE/NARRATION/audio</text>
+
+  <!-- receiver -> bus -> cvaim -> combat -->
+  <path class="edge" d="M155,296 L155,256" marker-end="url(#arr)"/>
+  <path class="edge" d="M250,232 L298,232" marker-end="url(#arr)"/>
+  <path class="edge" d="M390,254 L390,294" marker-end="url(#arr)"/>
+
+  <!-- combat -> telemetry / ui -->
+  <path class="edge" d="M480,312 L768,242" marker-end="url(#arr)"/>
+  <rect class="etbg" x="588" y="268" width="30" height="15"/><text class="et" x="603" y="279">hits</text>
+  <path class="edge" d="M480,338 L768,330" marker-end="url(#arr)"/>
+  <rect class="etbg" x="600" y="326" width="36" height="15"/><text class="et" x="618" y="337">state</text>
+
+  <!-- telemetry -> GM ; bossagent <-> GM -->
+  <path class="edge" d="M860,254 L710,440" marker-end="url(#arr)"/>
+  <rect class="etbg" x="724" y="338" width="118" height="15"/><text class="et" x="783" y="349">POST /agent/combat</text>
+  <path class="edge" d="M648,340 L662,440" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <rect class="etbg" x="636" y="386" width="86" height="15"/><text class="et" x="679" y="397">/agent/combat</text>
+
+  <!-- GM -> adapters -->
+  <path class="edge" d="M800,479 L838,479" marker-end="url(#arr)"/>
+
+  <!-- bosscall -> adapters -> vapi -> phone -->
+  <path class="edge" d="M1140,340 L1010,446" marker-end="url(#arr)"/>
+  <rect class="etbg" x="1024" y="386" width="98" height="15"/><text class="et" x="1073" y="397">POST /boss-call</text>
+  <path class="edge" d="M980,510 L890,616" marker-end="url(#arr)"/>
+  <path class="edge" d="M930,641 L1244,641 L1244,125 L1242,125" marker-end="url(#arr)"/>
+  <rect class="etbg" x="1186" y="372" width="86" height="15"/><text class="et" x="1229" y="383">outbound call</text>
+
+  <!-- GM -> redis / arize / asi -->
+  <path class="edge" d="M600,516 L160,616" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <rect class="etbg" x="300" y="556" width="74" height="15"/><text class="et" x="337" y="567">memory/KNN</text>
+  <path class="edge" d="M650,518 L330,616" marker-end="url(#arr)"/>
+  <rect class="etbg" x="470" y="566" width="38" height="15"/><text class="et" x="489" y="577">spans</text>
+  <path class="edge" d="M772,516 L1100,616" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <rect class="etbg" x="946" y="560" width="30" height="15"/><text class="et" x="961" y="571">LLM</text>
+
+  <!-- adapters -> pika / deepgram -->
+  <path class="edge" d="M905,510 L520,616" marker-end="url(#arr)"/>
+  <rect class="etbg" x="690" y="556" width="40" height="15"/><text class="et" x="710" y="567">recap</text>
+  <path class="edge" d="M945,510 L700,616" marker-end="url(#arr)"/>
+  <rect class="etbg" x="806" y="560" width="28" height="15"/><text class="et" x="820" y="571">TTS</text>
+
+  <!-- redis -> ws (pub/sub narration), deepgram audio -> ws (dashed async) -->
+  <path class="edged" d="M120,618 L150,512" marker-end="url(#arr)"/>
+  <rect class="etbg" x="40" y="556" width="78" height="15"/><text class="et" x="79" y="567">pub/sub narr.</text>
+
+  <!-- legend -->
+  <g transform="translate(1000,704)">
+    <line class="edge" x1="0" y1="0" x2="26" y2="0" marker-end="url(#arr)"/>
+    <text class="et" x="32" y="4" text-anchor="start">data flow</text>
+    <line class="edged" x1="110" y1="0" x2="136" y2="0" marker-end="url(#arr)"/>
+    <text class="et" x="142" y="4" text-anchor="start">async pub/sub</text>
+  </g>
+</svg>

@@ -9,12 +9,12 @@ namespace KiForge.Combat
         public int playerMaxHealth = 100;
         public int bossMaxHealth = 100;
         public float maxChargeSeconds = 3.5f;
-        public int levelOneDamage = 9;
-        public int levelTwoDamage = 18;
-        public int levelThreeDamage = 23;
-        public int levelFourDamage = 34;
-        public int quickPunchDamage = 14;
-        public int veryHeavyPunchDamage = 45;
+        public int levelOneDamage = 12;
+        public int levelTwoDamage = 24;
+        public int levelThreeDamage = 42;
+        public int levelFourDamage = 65;
+        public int quickPunchDamage = 18;
+        public int veryHeavyPunchDamage = 88;
         public float punchReach = 9f;
 
         public int ChargeLevel(float holdSeconds)

@@ -303,6 +303,12 @@ def demo_recap_set_url(player_id: str = "demo_player", url: str = "", job_id: st
     return {"status": "ok", "url": url, "player_id": player_id}
 
 
+@app.get("/demo/recap/highlights")
+def demo_recap_highlights() -> dict[str, Any]:
+    """Returns the structured highlight moments used to build the recap video prompt."""
+    return _game_master.last_highlights_summary or {}
+
+
 @app.get("/demo/recap/pending-prompt")
 def demo_recap_pending_prompt(player_id: str = "demo_player") -> dict[str, Any]:
     """Returns the fight-specific cinematic prompt and clears the old URL so Unity shows 'Generating…' again."""
