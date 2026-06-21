@@ -68,7 +68,6 @@ class GameMasterAgent:
             profile_vector,
             {
                 "style": profile_after.get("style", "balanced"),
-                "counter_success": evaluation.counter_success,
                 "strategy_weights": strategy_weights,
             },
         )
@@ -143,8 +142,6 @@ class GameMasterAgent:
 
     def demo_state(self, player_id: str = "demo_player") -> dict:
         profile = self.store.get_json(f"player:{player_id}:profile")
-        events = self.store.get_match_events(player_id, limit=20)
-        traces = self.store.get_traces(player_id, limit=10)
         return {
             "player_id": player_id,
             "match_id": self.match_id,
@@ -153,7 +150,7 @@ class GameMasterAgent:
             "vector_search": self.store.using_vector_search,
             "player_profile": profile,
             "latest_response": self.latest_response.to_event().payload if self.latest_response else {},
-            "recent_events": events,
+            "recent_events": self.store.get_match_events(player_id, limit=20),
             "recent_traces": self.store.get_traces(player_id, limit=10),
             "boss_phase": self.store.get_boss_phase(player_id),
             "active_cooldowns": self.store.active_cooldowns(player_id, list(_TRACKED_ABILITIES)),
