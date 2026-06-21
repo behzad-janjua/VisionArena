@@ -185,6 +185,55 @@ namespace KiForge.Input
         public void InjectGesture(GestureEvent gesture) => eventBus?.PublishGesture(gesture);
         public void InjectPose(PoseEvent pose) => eventBus?.PublishPose(pose);
 
+        /// <summary>
+        /// Sends a COMBAT_TELEMETRY frame over the WebSocket. The backend's GameMasterAgent
+        /// processes it and replies with an AGENT_RESPONSE that NarrationDisplayUI shows.
+        /// When outcome is "boss_ko" or "player_ko" the backend also submits a Pika recap.
+        /// Fire-and-forget; silently no-ops when the socket is not connected.
+        /// </summary>
+        public void SendCombatTelemetry(
+            int round,
+            string playerAction,
+            float chargeTime,
+            float accuracy,
+            int damageDealtByPlayer,
+            int damageDealtByBoss,
+            string bossAction,
+            int bossHealthAfter,
+            int playerHealthAfter,
+            string outcome)
+        {
+            _ = SendJsonAsync(BuildCombatTelemetryJson(
+                round, playerAction, chargeTime, accuracy,
+                damageDealtByPlayer, damageDealtByBoss, bossAction,
+                bossHealthAfter, playerHealthAfter, outcome));
+        }
+
+        private static string BuildCombatTelemetryJson(
+            int round, string playerAction, float chargeTime, float accuracy,
+            int dmgByPlayer, int dmgByBoss, string bossAction,
+            int bossHpAfter, int playerHpAfter, string outcome)
+        {
+            // JsonUtility cannot serialise nested dicts, so we build the frame by hand.
+            // The schema mirrors backend.models.NormalizedEvent + CombatTelemetry payload.
+            var ts = UnityEngine.Time.realtimeSinceStartupAsDouble;
+            return
+                "{\"type\":\"COMBAT_TELEMETRY\"," +
+                $"\"timestamp\":{ts:F3}," +
+                "\"payload\":{" +
+                $"\"round\":{round}," +
+                $"\"player_action\":\"{playerAction}\"," +
+                $"\"charge_time\":{chargeTime:F3}," +
+                $"\"accuracy\":{accuracy:F3}," +
+                $"\"damage_dealt_by_player\":{dmgByPlayer}," +
+                $"\"damage_dealt_by_boss\":{dmgByBoss}," +
+                $"\"boss_action\":\"{bossAction}\"," +
+                $"\"boss_health_after\":{bossHpAfter}," +
+                $"\"player_health_after\":{playerHpAfter}," +
+                $"\"outcome\":\"{outcome}\"" +
+                "}}";
+        }
+
         private void OnDestroy()
         {
             cts?.Cancel();

@@ -13,6 +13,8 @@ namespace KiForge.Bootstrap
     {
         private const int MaxHealth = AttackTuning.MaxHealth; // 120 -> 12 plain punches to KO
 
+        private int round;  // incremented each time an attack connects
+
         // Max horizontal gap (world units) at which a swing actually connects. Beyond
         // this the attack whiffs, so fighters must close the distance to deal damage.
         private const float HitRange = 2.4f;
@@ -39,6 +41,8 @@ namespace KiForge.Bootstrap
                 bossFighter.Initialize(player.transform, false);
 
                 // Wire death animation directly to health-depletion events.
+                // The telemetry lambdas (further down) already send the KO event that triggers
+                // the backend's Pika recap. These callbacks handle the visual side only.
                 bossHealth.Defeated   += () => { bossFighter.PlayDying();   playerFighter.StopLoop(); };
                 playerHealth.Defeated += () => { playerFighter.PlayDying(); bossFighter.StopLoop();   };
 
@@ -79,6 +83,10 @@ namespace KiForge.Bootstrap
 
                 coach.Initialize(playerInput, () => bossBrain.CurrentDecision);
 
+                // --- Telemetry recorder: every hit goes to /agent/combat over the WebSocket ---
+                var telemetryRecorder = new GameObject("TelemetryRecorder").AddComponent<MatchTelemetryRecorder>();
+                telemetryRecorder.Initialize(eventBus);
+
                 // --- Damage resolution: typed damage, blocking cuts it to 30% ---
                 playerFighter.Impact += (src, tgt) =>
                 {
@@ -90,6 +98,29 @@ namespace KiForge.Bootstrap
                     bossHealth.ApplyDamage(dmg);
                     bossFighter.PlayPain();
                     coach.RecordPlayerLanded(playerFighter.LastAttack, blocked);
+
+                    round++;
+                    var outcome = bossHealth.IsDefeated ? "boss_ko"
+                                : blocked              ? "player_blocked"
+                                : "boss_staggered";
+                    var evt = new CombatTelemetryEvent
+                    {
+                        round           = round,
+                        playerAction    = AttackToPlayerAction(playerFighter.LastAttack),
+                        chargeTime      = myo.LastHoldSeconds,
+                        accuracy        = blocked ? 0.3f : 1.0f,
+                        damageDealtByPlayer = dmg,
+                        damageDealtByBoss   = 0,
+                        bossAction      = BossDecisionString(bossBrain.CurrentDecision),
+                        bossHealthAfter = bossHealth.Health,
+                        playerHealthAfter = playerHealth.Health,
+                        outcome         = outcome
+                    };
+                    telemetryRecorder.Record(evt);
+                    backend.SendCombatTelemetry(
+                        evt.round, PlayerActionString(evt.playerAction), evt.chargeTime, evt.accuracy,
+                        evt.damageDealtByPlayer, evt.damageDealtByBoss, evt.bossAction,
+                        evt.bossHealthAfter, evt.playerHealthAfter, evt.outcome);
                 };
 
                 bossFighter.Impact += (src, tgt) =>
@@ -101,6 +132,29 @@ namespace KiForge.Bootstrap
                     playerHealth.ApplyDamage(dmg);
                     playerFighter.PlayPain();
                     coach.RecordPlayerTookHit();
+
+                    round++;
+                    var outcome2 = playerHealth.IsDefeated ? "player_ko"
+                                 : blocked                 ? "boss_blocked"
+                                 : "player_staggered";
+                    var evt2 = new CombatTelemetryEvent
+                    {
+                        round           = round,
+                        playerAction    = PlayerActionType.None,
+                        chargeTime      = 0f,
+                        accuracy        = 0f,
+                        damageDealtByPlayer = 0,
+                        damageDealtByBoss   = dmg,
+                        bossAction      = BossDecisionString(bossBrain.CurrentDecision),
+                        bossHealthAfter = bossHealth.Health,
+                        playerHealthAfter = playerHealth.Health,
+                        outcome         = outcome2
+                    };
+                    telemetryRecorder.Record(evt2);
+                    backend.SendCombatTelemetry(
+                        evt2.round, "guard", evt2.chargeTime, evt2.accuracy,
+                        evt2.damageDealtByPlayer, evt2.damageDealtByBoss, evt2.bossAction,
+                        evt2.bossHealthAfter, evt2.playerHealthAfter, evt2.outcome);
                 };
 
                 var hud = new GameObject("HUD").AddComponent<HealthBarUI>();
@@ -119,6 +173,54 @@ namespace KiForge.Bootstrap
         private static bool InHitRange(Transform a, Transform b)
         {
             return Mathf.Abs(a.position.x - b.position.x) <= HitRange;
+        }
+
+        // Maps AttackType -> PlayerActionType for the telemetry struct.
+        private static PlayerActionType AttackToPlayerAction(AttackType type)
+        {
+            switch (type)
+            {
+                case AttackType.PunchLeft:               return PlayerActionType.LeftPunch;
+                case AttackType.PunchRight:              return PlayerActionType.RightPunch;
+                case AttackType.KickLeft:                return PlayerActionType.LeftPunch;
+                case AttackType.KickRight:               return PlayerActionType.RightPunch;
+                case AttackType.HeavyPunch:              return PlayerActionType.HeavyPunch;
+                case AttackType.VeryHeavyPunch:          return PlayerActionType.VeryHeavyPunch;
+                case AttackType.Ultimate:                return PlayerActionType.VeryHeavyPunch;
+                default:                                 return PlayerActionType.None;
+            }
+        }
+
+        // Serialises PlayerActionType to the snake_case string the backend expects.
+        private static string PlayerActionString(PlayerActionType action)
+        {
+            switch (action)
+            {
+                case PlayerActionType.LeftPunch:    return "left_punch";
+                case PlayerActionType.RightPunch:   return "right_punch";
+                case PlayerActionType.HeavyPunch:   return "heavy_punch";
+                case PlayerActionType.VeryHeavyPunch: return "very_heavy_punch";
+                case PlayerActionType.Guard:        return "guard";
+                default:                            return "left_punch";
+            }
+        }
+
+        // Serialises BossDecision to the snake_case string the backend expects.
+        private static string BossDecisionString(BossDecision decision)
+        {
+            switch (decision.kind)
+            {
+                case BossActionKind.Block: return "guard";
+                case BossActionKind.Dodge: return "dodge";
+                default:
+                    switch (decision.attack)
+                    {
+                        case AttackType.HeavyPunch:
+                        case AttackType.VeryHeavyPunch: return "heavy_counter";
+                        case AttackType.PunchLeft:      return "left_punch";
+                        default:                        return "right_punch";
+                    }
+            }
         }
 
         private static int ResolveDamage(AttackType type, bool blocked)

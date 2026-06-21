@@ -58,6 +58,9 @@ namespace KiForge.Input
         /// <summary>Current charge time while a fist is held (0 when resting). For HUD/aura.</summary>
         public float CurrentHoldSeconds => wasContracted ? holdTime : 0f;
 
+        /// <summary>Hold duration of the most recently completed punch. Stable after release for telemetry.</summary>
+        public float LastHoldSeconds { get; private set; }
+
         public MyoPunchTier CurrentTier => TierFor(holdTime);
 
         public void Initialize(IMyoSource myoSource)
@@ -84,7 +87,7 @@ namespace KiForge.Input
 
             if (wasContracted)
             {
-                // Fist released -> fire the punch tier the hold earned.
+                LastHoldSeconds = holdTime;
                 Punched?.Invoke(AttackForTier(TierFor(holdTime)));
                 wasContracted = false;
                 holdTime = 0f;
